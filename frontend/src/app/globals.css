@@ -35,7 +35,10 @@
   body {
     background: var(--bg-base);
     color: var(--text-primary);
-    font-family: var(--font-sans), system-ui, sans-serif;
+    /* Reference the next/font variables directly: @theme inline does not
+       emit --font-sans as a runtime CSS var, which silently fell back to
+       the device font. */
+    font-family: var(--font-geist-sans), system-ui, sans-serif;
     -webkit-font-smoothing: antialiased;
     min-height: 100dvh;
   }
@@ -112,3 +115,46 @@
     transition-duration: 0.01ms !important;
   }
 }
+
+/* ------------------------------------------------------------------ */
+/* Cookie consent (vanilla-cookieconsent) - compact brand styling      */
+/* ------------------------------------------------------------------ */
+#cc-main {
+  --cc-font-family: var(--font-geist-sans), system-ui, sans-serif;
+  --cc-bg: oklch(0.20 0.02 240);
+  --cc-primary-color: var(--text-primary);
+  --cc-secondary-color: var(--text-muted);
+  --cc-btn-primary-bg: var(--brand-accent);
+  --cc-btn-primary-color: var(--text-on-brand);
+  --cc-btn-primary-hover-bg: oklch(0.80 0.19 130);
+  --cc-btn-secondary-bg: oklch(0.26 0.02 240);
+  --cc-btn-secondary-color: var(--text-primary);
+  --cc-btn-secondary-hover-bg: oklch(0.30 0.02 240);
+  --cc-separator-border-color: var(--glass-border);
+  --cc-toggle-on-bg: var(--brand-accent);
+  --cc-cookie-category-block-bg: oklch(0.17 0.02 240);
+  --cc-cookie-category-block-hover-bg: oklch(0.22 0.02 240);
+  --cc-modal-border-radius: 1rem;
+  --cc-btn-border-radius: 0.65rem;
+  font-size: 13px;
+}
+/* Compact consent box */
+#cc-main .cm {
+  max-width: 22rem;
+  padding: 0;
+}
+#cc-main .cm__title { font-size: 0.9rem; }
+#cc-main .cm__desc { font-size: 0.78rem; line-height: 1.45; }
+#cc-main .cm__btn { font-size: 0.78rem; padding: 0.5rem 0.8rem; }
+@media (max-width: 640px) {
+  #cc-main .cm {
+    max-width: calc(100vw - 1.5rem);
+    margin: 0.75rem;
+  }
+}
+/* Compact preferences modal */
+#cc-main .pm { max-width: 26rem; }
+#cc-main .pm__title { font-size: 0.9rem; }
+#cc-main .pm__section-title { font-size: 0.8rem; }
+#cc-main .pm__section-desc { font-size: 0.75rem; }
+#cc-main .pm__btn { font-size: 0.78rem; padding: 0.5rem 0.8rem; }

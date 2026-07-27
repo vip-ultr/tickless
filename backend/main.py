@@ -5,18 +5,23 @@ Endpoints:
   GET  /api/health/extract    -> deep check (runs a real extraction)
   POST /api/extract           -> extract clean TikTok media (auth + rate limited)
 """
+import logging
 import os
+import shutil
+import tempfile
+from urllib.parse import quote
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, Header, HTTPException, Request
+from fastapi.concurrency import run_in_threadpool
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from slowapi import Limiter
 from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
-from starlette.responses import JSONResponse
+from starlette.responses import JSONResponse, StreamingResponse
 
-from extractor import ExtractionError, extract
+from extractor import ExtractionError, download_media, extract
 from validation import normalize_and_validate
 from ads import router as ads_router
 
@@ -114,3 +119,67 @@ async def api_extract(
         raise HTTPException(status_code=status, detail=ERROR_MESSAGES.get(e.code, ERROR_MESSAGES["extract_failed"]))
 
     return data
+
+
+@app.get("/api/download")
+@limiter.limit("10/minute")
+async def api_download(
+    request: Request,
+    url: str,
+    kind: str = "video",
+    x_tickless_key: str | None = Header(default=None),
+    key: str | None = None,
+):
+    """Download the clean video/audio server-side and stream it to the browser.
+
+    TikTok CDN URLs are signed for the extracting client (IP/headers), so
+    both direct browser links AND plain httpx proxying get 403. yt-dlp's own
+    downloader handles the CDN auth correctly, so we download to a temp file
+    and stream that, deleting it afterwards (Render fs is ephemeral anyway).
+
+    Accepts the API key via header or ?key= (plain <a href> navigation
+    cannot set custom headers).
+    """
+    _require_key(x_tickless_key or key)
+    if kind not in ("video", "audio"):
+        kind = "video"
+    try:
+        clean = normalize_and_validate(url)
+    except ValueError:
+        raise HTTPException(status_code=400, detail=ERROR_MESSAGES["not_tiktok"])
+
+    tmpdir = tempfile.mkdtemp(prefix="tickless-")
+    try:
+        path, title = await run_in_threadpool(download_media, clean, tmpdir, kind)
+    except Exception:
+        logging.exception("download_media failed for %s", clean)
+        shutil.rmtree(tmpdir, ignore_errors=True)
+        raise HTTPException(status_code=502, detail=ERROR_MESSAGES["extract_failed"])
+
+    if not os.path.isfile(path):
+        shutil.rmtree(tmpdir, ignore_errors=True)
+        raise HTTPException(status_code=502, detail=ERROR_MESSAGES["no_media"])
+
+    real_ext = path.rsplit(".", 1)[-1].lower() if "." in os.path.basename(path) else "bin"
+    if kind == "audio":
+        media_type = "audio/mpeg" if real_ext == "mp3" else "audio/mp4"
+    else:
+        media_type = "video/mp4"
+    safe_name = quote(f"{title}.{real_ext}")
+
+    def stream_and_cleanup():
+        try:
+            with open(path, "rb") as f:
+                while chunk := f.read(64 * 1024):
+                    yield chunk
+        finally:
+            shutil.rmtree(tmpdir, ignore_errors=True)
+
+    return StreamingResponse(
+        stream_and_cleanup(),
+        media_type=media_type,
+        headers={
+            "Content-Disposition": f"attachment; filename*=UTF-8''{safe_name}",
+            "Content-Length": str(os.path.getsize(path)),
+        },
+    )

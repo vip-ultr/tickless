@@ -1,8 +1,70 @@
 """TikTok extraction via yt-dlp. Returns clean (no-watermark) media metadata."""
+import shutil
+
 import yt_dlp
 from yt_dlp.utils import DownloadError
 
 from validation import is_photo_slideshow
+
+
+def extract_raw(url: str) -> dict:
+    """Full yt-dlp info dict (includes http_headers needed to fetch the CDN URL)."""
+    opts = {
+        "quiet": True,
+        "no_warnings": True,
+        "skip_download": True,
+        "noplaylist": True,
+    }
+    with yt_dlp.YoutubeDL(opts) as ydl:
+        return dict(ydl.extract_info(url, download=False))
+
+
+def download_media(url: str, dest_dir: str, kind: str = "video") -> tuple[str, str]:
+    """Download the clean media server-side via yt-dlp (it handles TikTok's
+    CDN auth/headers correctly, unlike a plain HTTP client).
+
+    Returns (file_path, title). Raises on failure.
+    """
+    is_audio = kind == "audio"
+    opts = {
+        "quiet": True,
+        "no_warnings": True,
+        "noplaylist": True,
+        "outtmpl": f"{dest_dir}/%(id)s.%(ext)s",
+        "restrictfilenames": True,
+        "socket_timeout": 20,
+        "retries": 5,
+        "fragment_retries": 5,
+    }
+    if is_audio:
+        opts["format"] = "bestaudio/best"
+        if shutil.which("ffmpeg"):
+            opts["postprocessors"] = [
+                {"key": "FFmpegExtractAudio", "preferredcodec": "mp3", "preferredquality": "192"}
+            ]
+        # Without ffmpeg (local dev only; the Docker image ships it) we
+        # serve the original audio container instead of converting.
+    else:
+        # Prefer clean progressive mp4 (play_addr), fall back to best.
+        opts["format"] = "best[ext=mp4]/best"
+
+    with yt_dlp.YoutubeDL(opts) as ydl:
+        # TikTok's web page intermittently fails extraction ("universal data
+        # for rehydration"); a single retry usually succeeds.
+        last_err = None
+        for _ in range(3):
+            try:
+                info = ydl.extract_info(url, download=True)
+                break
+            except DownloadError as e:
+                last_err = e
+        else:
+            raise last_err if last_err else DownloadError("extraction failed")
+        title = (info.get("title") or "tickless")[:60]
+        path = ydl.prepare_filename(info)
+        if is_audio and shutil.which("ffmpeg"):
+            path = path.rsplit(".", 1)[0] + ".mp3"
+        return path, title
 
 
 class ExtractionError(Exception):

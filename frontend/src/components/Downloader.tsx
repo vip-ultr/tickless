@@ -118,7 +118,7 @@ export function Downloader() {
         )}
         {state.kind === "done" && (
           <>
-            <ResultCard data={state.data} onReset={reset} />
+            <ResultCard data={state.data} sourceUrl={url.trim()} onReset={reset} />
             <div className="mt-5">
               <AdSlot slot="result" />
             </div>
@@ -149,7 +149,13 @@ function Skeleton({ slow }: { slow: boolean }) {
   );
 }
 
-function ResultCard({ data, onReset }: { data: Result; onReset: () => void }) {
+function ResultCard({ data, sourceUrl, onReset }: { data: Result; sourceUrl: string; onReset: () => void }) {
+  // Stream through the backend: TikTok CDN URLs are IP-locked to the
+  // server that extracted them, so direct links get Access Denied.
+  const key = process.env.NEXT_PUBLIC_API_KEY || "";
+  const dl = (kind: "video" | "audio") =>
+    `${API_URL}/api/download?url=${encodeURIComponent(sourceUrl)}&kind=${kind}${key ? `&key=${encodeURIComponent(key)}` : ""}`;
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 12 }}
@@ -177,23 +183,17 @@ function ResultCard({ data, onReset }: { data: Result; onReset: () => void }) {
 
       <div className="mt-5 flex flex-wrap gap-3">
         <a
-          href={data.video_url}
-          target="_blank"
-          rel="noopener noreferrer"
+          href={dl("video")}
           className="btn-brand flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold"
         >
           <Video size={16} /> Download
         </a>
-        {data.audio_url && (
-          <a
-            href={data.audio_url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="glass flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold"
-          >
-            <Music size={16} /> Audio (MP3)
-          </a>
-        )}
+        <a
+          href={dl("audio")}
+          className="glass flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold"
+        >
+          <Music size={16} /> Audio (MP3)
+        </a>
         <button
           onClick={onReset}
           className="rounded-xl px-4 py-2.5 text-sm tx-muted hover:tx"
