@@ -45,7 +45,16 @@ export function Footer() {
           </div>
         </div>
         <p className="mt-10 border-t border-[var(--glass-border)] pt-6 text-xs tx-muted">
-          (c) 2026 Tickless by Optivis Labs. Not affiliated with TikTok or ByteDance.{" "}
+          (c) 2026 Tickless by{" "}
+          <a
+            href="https://optivislabs.vercel.app"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="underline hover:tx"
+          >
+            Optivis Labs
+          </a>
+          . Not affiliated with TikTok or ByteDance.{" "}
           <button
             type="button"
             data-cc="show-preferencesModal"

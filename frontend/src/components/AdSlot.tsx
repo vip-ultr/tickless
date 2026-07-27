@@ -18,10 +18,17 @@ const SLOT_SIZES: Record<string, string> = {
 
 /**
  * House ad container. Renders NOTHING when no active ad exists for the slot
- * (no broken boxes). Reserves height only when an ad is present, and the
- * wrapper is network-ready so AdSense can slot in later.
+ * (no broken boxes, no reserved empty space). The optional className (e.g.
+ * margins) is applied only when an ad actually renders, so empty slots
+ * leave zero footprint in the layout.
  */
-export function AdSlot({ slot }: { slot: "leaderboard" | "in_content" | "result" }) {
+export function AdSlot({
+  slot,
+  className = "",
+}: {
+  slot: "leaderboard" | "in_content" | "result";
+  className?: string;
+}) {
   const [ad, setAd] = useState<Ad | null>(null);
 
   useEffect(() => {
@@ -43,21 +50,23 @@ export function AdSlot({ slot }: { slot: "leaderboard" | "in_content" | "result"
   if (!ad) return null;
 
   return (
-    <div className={`relative w-full overflow-hidden rounded-2xl ${SLOT_SIZES[slot]}`}>
-      <span className="absolute left-2 top-2 z-10 rounded bg-black/60 px-1.5 py-0.5 text-[10px] uppercase tracking-wider tx-muted">
-        Ad
-      </span>
-      <a
-        href={ad.target_url}
-        target="_blank"
-        rel="noopener noreferrer sponsored"
-        onClick={() => {
-          fetch(`${API_URL}/api/ads/${ad.id}/click`, { method: "POST" }).catch(() => {});
-        }}
-      >
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={ad.image_url} alt="Advertisement" className="h-full w-full object-cover" />
-      </a>
+    <div className={className}>
+      <div className={`relative w-full overflow-hidden rounded-2xl ${SLOT_SIZES[slot]}`}>
+        <span className="absolute left-2 top-2 z-10 rounded bg-black/60 px-1.5 py-0.5 text-[10px] uppercase tracking-wider tx-muted">
+          Ad
+        </span>
+        <a
+          href={ad.target_url}
+          target="_blank"
+          rel="noopener noreferrer sponsored"
+          onClick={() => {
+            fetch(`${API_URL}/api/ads/${ad.id}/click`, { method: "POST" }).catch(() => {});
+          }}
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={ad.image_url} alt="Advertisement" className="h-full w-full object-cover" />
+        </a>
+      </div>
     </div>
   );
 }

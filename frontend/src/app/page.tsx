@@ -26,10 +26,8 @@ export default function Home() {
       <Navbar />
       <ConsentBanner />
       <main className="mx-auto max-w-3xl px-5">
-        {/* Ad: top leaderboard */}
-        <div className="pt-6">
-          <AdSlot slot="leaderboard" />
-        </div>
+        {/* Ad: top leaderboard (zero footprint when empty) */}
+        <AdSlot slot="leaderboard" className="pt-6" />
         {/* Hero */}
         <section className="pt-10 md:pt-16">
           <p className="mb-4 text-sm font-medium tx-brand">Free TikTok downloader</p>
@@ -60,10 +58,8 @@ export default function Home() {
           </div>
         </section>
 
-        {/* Ad: in-content between How-it-works and Why */}
-        <div className="mt-16">
-          <AdSlot slot="in_content" />
-        </div>
+        {/* Ad: in-content between How-it-works and Why (zero footprint when empty) */}
+        <AdSlot slot="in_content" className="mt-16" />
 
         {/* Why Tickless */}
         <section className="mt-24">

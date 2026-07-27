@@ -119,9 +119,7 @@ export function Downloader() {
         {state.kind === "done" && (
           <>
             <ResultCard data={state.data} sourceUrl={url.trim()} onReset={reset} />
-            <div className="mt-5">
-              <AdSlot slot="result" />
-            </div>
+            <AdSlot slot="result" className="mt-5" />
           </>
         )}
       </div>

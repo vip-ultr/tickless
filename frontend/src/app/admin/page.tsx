@@ -18,6 +18,13 @@ type Ad = {
 
 const SLOTS = ["leaderboard", "in_content", "result"] as const;
 
+// Recommended creative sizes shown in the admin (must match AdSlot rendering).
+const SLOT_SIZE_HINTS: Record<string, string> = {
+  leaderboard: "970 x 90 px (wide banner)",
+  in_content: "300 x 250 px",
+  result: "300 x 250 px",
+};
+
 export default function AdminPage() {
   // sessionStorage is client-only; read it lazily after mount without
   // a synchronous setState-in-effect (React lint rule).
@@ -83,6 +90,8 @@ function Dashboard({ token, onLogout }: { token: string; onLogout: () => void })
   const [ads, setAds] = useState<Ad[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [confirmDelete, setConfirmDelete] = useState<Ad | null>(null);
+  const [selectedSlot, setSelectedSlot] = useState<string>("leaderboard");
 
   const authed = useCallback(
     (path: string, init?: RequestInit) =>
@@ -131,8 +140,8 @@ function Dashboard({ token, onLogout }: { token: string; onLogout: () => void })
   }
 
   async function remove(ad: Ad) {
-    if (!confirm("Delete this ad?")) return;
     await authed(`/api/admin/ads/${ad.id}`, { method: "DELETE" });
+    setConfirmDelete(null);
     await load();
   }
 
@@ -150,9 +159,20 @@ function Dashboard({ token, onLogout }: { token: string; onLogout: () => void })
       <form onSubmit={create} className="glass mt-8 rounded-3xl p-6">
         <h2 className="font-semibold">New ad</h2>
         <div className="mt-4 grid gap-3 md:grid-cols-2">
-          <select name="slot" required className="glass rounded-xl px-4 py-3 text-sm outline-none tx bg-transparent">
-            {SLOTS.map((s) => <option key={s} value={s} className="bg-[#111827]">{s}</option>)}
-          </select>
+          <div>
+            <select
+              name="slot"
+              required
+              value={selectedSlot}
+              onChange={(e) => setSelectedSlot(e.target.value)}
+              className="glass w-full rounded-xl px-4 py-3 text-sm outline-none tx bg-transparent"
+            >
+              {SLOTS.map((s) => <option key={s} value={s} className="bg-[#111827]">{s}</option>)}
+            </select>
+            <p className="mt-1.5 px-1 text-xs tx-muted">
+              Recommended size: {SLOT_SIZE_HINTS[selectedSlot]}
+            </p>
+          </div>
           <input name="target_url" type="url" required placeholder="Click-through URL"
             className="glass rounded-xl px-4 py-3 text-sm outline-none tx" />
           <input name="image" type="file" accept="image/png,image/jpeg,image/webp,image/gif" required
@@ -173,20 +193,61 @@ function Dashboard({ token, onLogout }: { token: string; onLogout: () => void })
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-medium">{ad.target_url}</p>
               <p className="mt-1 text-xs tx-muted">
-                {ad.slot} · {ad.impressions} views · {ad.clicks} clicks ·{" "}
+                {ad.slot} ({SLOT_SIZE_HINTS[ad.slot] || ""}) · {ad.impressions} views · {ad.clicks} clicks ·{" "}
                 {ad.is_active ? "active" : "paused"}
               </p>
             </div>
             <button onClick={() => toggle(ad)} title={ad.is_active ? "Pause" : "Activate"} className="tx-muted hover:tx">
               {ad.is_active ? <Eye size={18} /> : <EyeOffIcon size={18} />}
             </button>
-            <button onClick={() => remove(ad)} title="Delete" className="tx-muted hover:text-[var(--danger)]">
+            <button onClick={() => setConfirmDelete(ad)} title="Delete" className="tx-muted hover:text-[var(--danger)]">
               <Trash2 size={18} />
             </button>
           </div>
         ))}
         {!ads.length && !error && <p className="text-sm tx-muted">No ads yet. Publish the first one above.</p>}
       </div>
+
+      {/* Delete confirmation modal (brand-styled, replaces native confirm) */}
+      {confirmDelete && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-5 backdrop-blur-sm"
+          onClick={() => setConfirmDelete(null)}
+        >
+          <div
+            className="glass-strong w-full max-w-sm rounded-2xl p-6"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="font-semibold">Delete this ad?</h3>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={confirmDelete.image_url}
+              alt=""
+              className="mt-4 h-24 w-full rounded-xl object-cover"
+            />
+            <p className="mt-3 truncate text-xs tx-muted">
+              {confirmDelete.slot} · {confirmDelete.target_url}
+            </p>
+            <p className="mt-2 text-sm tx-muted">
+              The ad and its image are removed permanently. This cannot be undone.
+            </p>
+            <div className="mt-5 flex justify-end gap-3">
+              <button
+                onClick={() => setConfirmDelete(null)}
+                className="rounded-xl px-4 py-2 text-sm tx-muted hover:tx"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => remove(confirmDelete)}
+                className="flex items-center gap-2 rounded-xl bg-[var(--danger)] px-4 py-2 text-sm font-semibold text-white"
+              >
+                <Trash2 size={14} /> Delete ad
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 }
