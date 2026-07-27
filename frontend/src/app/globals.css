@@ -117,6 +117,38 @@
 }
 
 /* ------------------------------------------------------------------ */
+/* Thin brand scrollbar (desktop pointer devices only; mobile keeps    */
+/* the native overlay scrollbar)                                       */
+/* ------------------------------------------------------------------ */
+@media (pointer: fine) {
+  /* Firefox */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: oklch(0.45 0.02 240) transparent;
+  }
+
+  /* WebKit (Chrome, Edge, Safari) */
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: oklch(0.45 0.02 240);
+    border-radius: 9999px;
+    border: 2px solid var(--bg-base);
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: oklch(0.58 0.03 230);
+  }
+  ::-webkit-scrollbar-corner {
+    background: transparent;
+  }
+}
+
+/* ------------------------------------------------------------------ */
 /* Cookie consent (vanilla-cookieconsent) - compact brand styling      */
 /* ------------------------------------------------------------------ */
 #cc-main {
