@@ -1,9 +1,11 @@
-fastapi==0.115.6
-uvicorn[standard]==0.34.0
-yt-dlp
-slowapi==0.1.9
-python-dotenv==1.0.1
+# Pinned from the verified local environment (uv pip freeze).
+# supabase>=2.31 is required for httpx 0.28 compatibility.
+fastapi==0.140.0
+uvicorn[standard]==0.51.0
+yt-dlp==2026.7.4
+slowapi==0.1.10
+python-dotenv==1.2.2
 httpx==0.28.1
-python-multipart==0.0.20
-supabase==2.10.0
-pyjwt==2.10.1
+python-multipart==0.0.32
+supabase==2.31.0
+pyjwt==2.13.0
