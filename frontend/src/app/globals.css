@@ -1,0 +1,114 @@
+@import "tailwindcss";
+
+/* ------------------------------------------------------------------ */
+/* Tickless brand tokens (LOCKED) - midnight + cyan accent, NO gradients */
+/* ------------------------------------------------------------------ */
+:root {
+  --brand-primary: oklch(0.78 0.16 195);   /* luminous cyan */
+  --brand-accent:  oklch(0.86 0.19 130);   /* electric lime (small accents only) */
+  --bg-base:       oklch(0.15 0.015 240);  /* midnight slate */
+  --bg-elevated:   oklch(0.20 0.02 240);   /* card surface  */
+  --glass-tint:    oklch(0.65 0.03 220 / 0.08);
+  --glass-border:  oklch(0.90 0.02 210 / 0.16);
+  --glass-highlight: oklch(1 0 0 / 0.25);
+  --text-primary:  oklch(0.98 0.005 240);
+  --text-muted:    oklch(0.68 0.02 240);
+  --text-on-brand: oklch(0.15 0.015 240);
+  --success:       oklch(0.80 0.17 155);
+  --danger:        oklch(0.68 0.20 25);
+}
+
+@theme inline {
+  --color-brand: var(--brand-primary);
+  --color-accent: var(--brand-accent);
+  --color-base: var(--bg-base);
+  --color-elevated: var(--bg-elevated);
+  --color-fg: var(--text-primary);
+  --color-muted: var(--text-muted);
+  --color-success: var(--success);
+  --color-danger: var(--danger);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+@layer base {
+  body {
+    background: var(--bg-base);
+    color: var(--text-primary);
+    font-family: var(--font-sans), system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    min-height: 100dvh;
+  }
+}
+
+/* Variant-capable custom utilities (Tailwind v4 @utility) */
+@utility tx { color: var(--text-primary); }
+@utility tx-muted { color: var(--text-muted); }
+@utility tx-brand { color: var(--brand-primary); }
+@utility tx-accent { color: var(--brand-accent); }
+
+@layer utilities {
+  /* ---------------------------------------------------------------- */
+  /* Real frosted glass (Apple-style recipe):                          */
+  /*  - heavy backdrop blur + saturate so passing content colors       */
+  /*    bleed through and shift the surface like true glass            */
+  /*  - a LIGHT tint (over-tinting is what kills the effect)           */
+  /*  - inset top highlight = the specular edge of a pane              */
+  /*  - soft drop shadow for lift                                      */
+  /* ---------------------------------------------------------------- */
+  .glass {
+    background: var(--glass-tint);
+    border: 1px solid var(--glass-border);
+    backdrop-filter: blur(24px) saturate(180%);
+    -webkit-backdrop-filter: blur(24px) saturate(180%);
+    box-shadow:
+      inset 0 1px 0 0 var(--glass-highlight),
+      0 8px 32px oklch(0 0 0 / 0.35);
+  }
+  /* Non-blur fallback for old devices */
+  @supports not (backdrop-filter: blur(1px)) {
+    .glass { background: var(--bg-elevated); }
+  }
+
+  /* Heavier variant for overlays that sit on busy content (nav, sheet) */
+  .glass-strong {
+    background: oklch(0.16 0.02 240 / 0.88);
+    border: 1px solid var(--glass-border);
+    backdrop-filter: blur(80px) saturate(160%);
+    -webkit-backdrop-filter: blur(80px) saturate(160%);
+    box-shadow:
+      inset 0 1px 0 0 var(--glass-highlight),
+      0 12px 40px oklch(0 0 0 / 0.45);
+  }
+  @supports not (backdrop-filter: blur(1px)) {
+    .glass-strong { background: var(--bg-elevated); }
+  }
+
+  /* Solid brand button - green accent */
+  .btn-brand {
+    background: var(--brand-accent);
+    color: var(--text-on-brand);
+    transition: filter 0.15s ease;
+  }
+  .btn-brand:hover { filter: brightness(1.08); }
+
+  /* Ambient depth behind the page - cyan + green hints so the palette blends */
+  .mesh-bg::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    background:
+      radial-gradient(70rem 45rem at 20% -10%, oklch(0.30 0.05 250 / 0.5), transparent 60%),
+      radial-gradient(55rem 40rem at 90% 10%, oklch(0.28 0.05 195 / 0.35), transparent 55%),
+      radial-gradient(50rem 40rem at 50% 110%, oklch(0.28 0.06 140 / 0.30), transparent 55%);
+    pointer-events: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

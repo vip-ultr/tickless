@@ -18,6 +18,7 @@ from starlette.responses import JSONResponse
 
 from extractor import ExtractionError, extract
 from validation import normalize_and_validate
+from ads import router as ads_router
 
 load_dotenv()
 
@@ -47,9 +48,11 @@ app.state.limiter = limiter
 app.add_middleware(
     CORSMiddleware,
     allow_origins=ALLOWED_ORIGINS,
-    allow_methods=["GET", "POST"],
+    allow_methods=["GET", "POST", "PATCH", "DELETE"],
     allow_headers=["*"],
 )
+
+app.include_router(ads_router)
 
 
 @app.exception_handler(RateLimitExceeded)

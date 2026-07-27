@@ -1,0 +1,12 @@
+{
+  "name": "Tickless",
+  "short_name": "Tickless",
+  "description": "Save TikTok videos without the watermark. Free, no app, no sign-up.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#151a24",
+  "theme_color": "#151a24",
+  "icons": [
+    { "src": "/favicon.svg", "sizes": "any", "type": "image/svg+xml" }
+  ]
+}
