@@ -9,7 +9,10 @@ import time
 import uuid
 
 import jwt
+from dotenv import load_dotenv
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Header, UploadFile
+
+load_dotenv()
 
 SUPABASE_URL = os.getenv("SUPABASE_URL", "")
 SUPABASE_KEY = os.getenv("SUPABASE_SERVICE_KEY", "")
