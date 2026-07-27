@@ -21,7 +21,7 @@ const SLOTS = ["leaderboard", "in_content", "result"] as const;
 // Recommended creative sizes shown in the admin (must match AdSlot rendering).
 const SLOT_SIZE_HINTS: Record<string, string> = {
   leaderboard: "970 x 90 px (wide banner)",
-  in_content: "300 x 250 px",
+  in_content: "970 x 90 px (wide banner)",
   result: "300 x 250 px",
 };
 

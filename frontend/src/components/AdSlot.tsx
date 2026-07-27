@@ -12,7 +12,7 @@ type Ad = {
 
 const SLOT_SIZES: Record<string, string> = {
   leaderboard: "h-[100px] md:h-[90px]",
-  in_content: "h-[250px] max-w-[300px] mx-auto",
+  in_content: "h-[100px] md:h-[90px]",
   result: "h-[250px] max-w-[300px]",
 };
 
