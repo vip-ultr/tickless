@@ -53,10 +53,10 @@ export function AdSlot({
   return (
     <div className={className}>
       <div className={`relative w-full overflow-hidden rounded-2xl ${SLOT_SIZES[slot]}`}>
-        <span className="absolute left-2 top-2 z-10 rounded bg-black/60 px-1.5 py-0.5 text-[10px] uppercase tracking-wider tx-muted">
+        <span className="pointer-events-none absolute left-2 top-2 z-10 rounded bg-black/60 px-1.5 py-0.5 text-[10px] uppercase tracking-wider tx-muted">
           Ad
         </span>
-        <span className="absolute right-2 top-2 z-10 flex items-center gap-1 rounded bg-black/60 px-1.5 py-0.5 text-[10px] uppercase tracking-wider tx-muted">
+        <span className="pointer-events-none absolute right-2 top-2 z-10 flex items-center gap-1 rounded bg-black/60 px-1.5 py-0.5 text-[10px] uppercase tracking-wider tx-muted">
           <ExternalLink size={10} /> Visit
         </span>
         <a
