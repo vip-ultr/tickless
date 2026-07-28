@@ -35,3 +35,4 @@ python healthcheck.py https://your-backend.onrender.com
 - Design returns the TikTok CDN URL directly (redirect, not proxy) to keep bandwidth near zero on the free tier.
 - yt-dlp breaks periodically when TikTok changes; the Dockerfile auto-updates it and the daily health check alerts us.
 redeploy probe 20260728214116
+redeploy probe 20260728214334
