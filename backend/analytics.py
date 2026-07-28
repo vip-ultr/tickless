@@ -66,3 +66,28 @@ async def visit_stats():
         return res.data or _EMPTY_STATS
     except Exception:
         return _EMPTY_STATS
+
+
+# ------------------------------------------------------------ downloads
+
+def record_download(platform: str, kind: str) -> None:
+    """Fire-and-forget per-platform download counter (called server-side)."""
+    sb = _sb()
+    if sb:
+        try:
+            sb.rpc("record_download", {"p_platform": platform, "p_kind": kind}).execute()
+        except Exception:
+            # Counters must never break a download.
+            pass
+
+
+@router.get("/api/admin/downloads", dependencies=[Depends(require_admin)])
+async def download_stats():
+    sb = _sb()
+    if not sb:
+        return {}
+    try:
+        res = sb.rpc("download_stats", {}).execute()
+        return res.data or {}
+    except Exception:
+        return {}

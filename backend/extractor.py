@@ -1,10 +1,47 @@
-"""TikTok extraction via yt-dlp. Returns clean (no-watermark) media metadata."""
+"""Media extraction via yt-dlp. Returns clean (no-watermark) media metadata."""
+import os
 import shutil
+import tempfile
 
 import yt_dlp
 from yt_dlp.utils import DownloadError
 
 from validation import is_photo_slideshow
+
+# Instagram requires an authenticated session since mid-2026 (yt-dlp issue
+# 17074): anonymous requests get "empty media response" even for public
+# reels. Operators can set IG_SESSIONID (the sessionid cookie value from a
+# logged-in browser) to enable Instagram support. Without it, IG links fail
+# with a clean user-facing error.
+IG_SESSIONID = os.getenv("IG_SESSIONID", "").strip()
+
+_ig_cookie_file: str | None = None
+
+
+def _ig_cookiefile() -> str | None:
+    """Materialize a Netscape cookie jar for Instagram from IG_SESSIONID."""
+    global _ig_cookie_file
+    if not IG_SESSIONID:
+        return None
+    if _ig_cookie_file and os.path.isfile(_ig_cookie_file):
+        return _ig_cookie_file
+    fd, path = tempfile.mkstemp(prefix="tickless-ig-", suffix=".txt")
+    with os.fdopen(fd, "w") as f:
+        f.write("# Netscape HTTP Cookie File\n")
+        f.write(
+            f".instagram.com\tTRUE\t/\tTRUE\t0\tsessionid\t{IG_SESSIONID}\n"
+        )
+    _ig_cookie_file = path
+    return path
+
+
+def _platform_opts(url: str) -> dict:
+    """Extra yt-dlp options needed for specific platforms."""
+    if "instagram.com" in url or "instagr.am" in url:
+        cookiefile = _ig_cookiefile()
+        if cookiefile:
+            return {"cookiefile": cookiefile}
+    return {}
 
 
 def extract_raw(url: str) -> dict:
@@ -36,6 +73,7 @@ def download_media(url: str, dest_dir: str, kind: str = "video") -> tuple[str, s
         "retries": 5,
         "fragment_retries": 5,
     }
+    opts.update(_platform_opts(url))
     if is_audio:
         opts["format"] = "bestaudio/best"
         if shutil.which("ffmpeg"):
@@ -100,10 +138,13 @@ def _pick_best_video(info: dict) -> dict | None:
 def extract(url: str) -> dict:
     """Extract clean media info. Raises ExtractionError with a code on failure."""
     try:
-        with yt_dlp.YoutubeDL(_YDL_OPTS) as ydl:
+        with yt_dlp.YoutubeDL({**_YDL_OPTS, **_platform_opts(url)}) as ydl:
             info = ydl.extract_info(url, download=False)
     except DownloadError as e:
         msg = str(e).lower()
+        if "empty media response" in msg or "login" in msg or "rate-limit" in msg or "rate limit" in msg:
+            # Instagram anti-bot wall: content exists but IG refuses our server.
+            raise ExtractionError("ig_blocked" if "instagram" in msg else "unavailable")
         if "private" in msg or "unavailable" in msg or "not available" in msg:
             raise ExtractionError("unavailable")
         raise ExtractionError("extract_failed")
@@ -129,7 +170,7 @@ def extract(url: str) -> dict:
             break
 
     return {
-        "title": (info.get("title") or info.get("description") or "TikTok video")[:200],
+        "title": (info.get("title") or info.get("description") or "video")[:200],
         "author": info.get("uploader") or info.get("creator") or "",
         "duration": info.get("duration"),
         "thumbnail": info.get("thumbnail"),

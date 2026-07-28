@@ -3,6 +3,7 @@ export const API_URL =
 
 export const NAV_LINKS = [
   { href: "/", label: "Home" },
+  { href: "/instagram", label: "Instagram" },
   { href: "/faq", label: "FAQ" },
   { href: "/about", label: "About" },
 ] as const;

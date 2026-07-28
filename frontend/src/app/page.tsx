@@ -35,7 +35,7 @@ export default function Home() {
             Save any TikTok without the <span className="tx-brand">watermark</span>.
           </h1>
           <p className="mt-5 max-w-xl text-base tx-muted md:text-lg">
-            Paste the link, pick your quality, and the clean video lands on your device in seconds. No app to install, no account to make.
+            Paste the link, pick your quality, and the clean video lands on your device in seconds. Works with Instagram Reels too. No app to install, no account to make.
           </p>
           <div className="mt-10">
             <Downloader />
@@ -81,7 +81,7 @@ export default function Home() {
         {/* Closing band */}
         <section className="mt-24 text-center">
           <h2 className="text-3xl font-extrabold tracking-tight md:text-4xl">
-            One box. Any TikTok video.
+            One box. TikTok and Instagram.
           </h2>
           <p className="mt-4 tx-muted">Paste a link above and see for yourself.</p>
         </section>

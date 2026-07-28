@@ -8,11 +8,11 @@ const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"]
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://tickless.vercel.app"),
-  title: "Tickless - TikTok videos, no watermark, no fuss",
+  title: "Tickless - TikTok & Instagram Video Downloader, No Watermark",
   description:
-    "Tickless downloads TikTok videos without the watermark in HD, straight to your device. Free, fast, no app, no sign-up.",
+    "Tickless downloads TikTok videos without the watermark and Instagram Reels in HD, straight to your device. Free, fast, no app, no sign-up.",
   openGraph: {
-    title: "Tickless - Save any TikTok without the watermark",
+    title: "Tickless - Save TikTok and Instagram videos, clean",
     description: "Paste a link. Get the clean video. Done.",
     url: "https://tickless.vercel.app",
     siteName: "Tickless",
@@ -20,7 +20,7 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "Tickless - Save any TikTok without the watermark",
+    title: "Tickless - Save TikTok and Instagram videos, clean",
     description: "Paste a link. Get the clean video. Done.",
   },
   icons: { icon: "/favicon.svg" },

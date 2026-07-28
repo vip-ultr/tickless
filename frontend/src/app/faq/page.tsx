@@ -4,7 +4,7 @@ import { Footer } from "@/components/Footer";
 
 export const metadata: Metadata = {
   title: "FAQ - Tickless",
-  description: "Questions about Tickless, answered. Free TikTok downloads without the watermark.",
+  description: "Questions about Tickless, answered. Free TikTok and Instagram downloads without the watermark.",
 };
 
 const FAQS = [
@@ -22,7 +22,11 @@ const FAQS = [
   },
   {
     q: "What links are supported?",
-    a: "Full links like tiktok.com/@user/video/123, short links like vm.tiktok.com/xxxx, and links copied straight from the Share menu.",
+    a: "TikTok links (tiktok.com/@user/video/123, short links like vm.tiktok.com/xxxx) and Instagram links (instagram.com/reel/xxxx, instagram.com/p/xxxx). Links copied straight from either app's Share menu work.",
+  },
+  {
+    q: "Does it work with Instagram?",
+    a: "Yes. Paste an Instagram Reel or video post link in the same box and Tickless detects it automatically. Public posts only, and photo carousels are not supported yet.",
   },
   {
     q: "Can I download the audio only?",
@@ -30,7 +34,7 @@ const FAQS = [
   },
   {
     q: "Do you store the videos I download?",
-    a: "No. Tickless does not keep the videos or a record of what you download. The file goes from TikTok to your device.",
+    a: "No. Tickless does not keep the videos or a record of what you download. The file goes from the platform to your device.",
   },
   {
     q: "Why is the first download sometimes slow?",

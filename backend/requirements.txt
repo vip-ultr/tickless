@@ -2,7 +2,9 @@
 # supabase>=2.31 is required for httpx 0.28 compatibility.
 fastapi==0.140.0
 uvicorn[standard]==0.51.0
-yt-dlp==2026.7.4
+# Nightly pre-release: the 2026.07 Instagram extractor rework (yt-dlp PR
+# 17075) is not in a stable release yet; stable 2026.7.4 cannot extract IG.
+yt-dlp==2026.7.23.234303.dev0
 slowapi==0.1.10
 python-dotenv==1.2.2
 httpx==0.28.1

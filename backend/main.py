@@ -26,7 +26,7 @@ from starlette.responses import JSONResponse, StreamingResponse
 from extractor import ExtractionError, download_media, extract
 from validation import normalize_and_validate
 from ads import router as ads_router
-from analytics import router as analytics_router
+from analytics import router as analytics_router, record_download
 
 load_dotenv()
 
@@ -40,13 +40,16 @@ HEALTHCHECK_URL = "https://www.tiktok.com/@scout2015/video/6718335390845095173"
 
 # User-facing error messages keyed by internal code.
 ERROR_MESSAGES = {
-    "empty": "Paste a TikTok link to get started.",
-    "too_long": "That link is too long to be a TikTok URL.",
-    "not_tiktok": "That does not look like a TikTok link. Check it and try again.",
+    "empty": "Paste a TikTok or Instagram link to get started.",
+    "too_long": "That link is too long to be a real video URL.",
+    "unsupported": "That does not look like a TikTok or Instagram link. Check it and try again.",
+    # Legacy alias kept so older callers/tests keep working.
+    "not_tiktok": "That does not look like a TikTok or Instagram link. Check it and try again.",
     "unavailable": "We could not reach this video. It may be private, removed, or region locked.",
-    "slideshow": "This is a photo slideshow. Slideshow to video is coming soon. Video posts work right now.",
+    "slideshow": "This is a photo post. Photo to video is coming soon. Video posts work right now.",
     "no_media": "We could not find a downloadable video at that link.",
     "extract_failed": "Something went wrong on our side. Give it another try in a moment.",
+    "ig_blocked": "Instagram is blocking our server right now. Try again in a few minutes.",
 }
 
 limiter = Limiter(key_func=get_remote_address)
@@ -149,17 +152,18 @@ async def api_extract(
 ):
     _require_key(x_tickless_key)
     try:
-        url = normalize_and_validate(body.url)
+        url, platform = normalize_and_validate(body.url)
     except ValueError as e:
         code = str(e)
-        raise HTTPException(status_code=400, detail=ERROR_MESSAGES.get(code, ERROR_MESSAGES["not_tiktok"]))
+        raise HTTPException(status_code=400, detail=ERROR_MESSAGES.get(code, ERROR_MESSAGES["unsupported"]))
 
     try:
         data = extract(url)
     except ExtractionError as e:
-        status = 400 if e.code in ("slideshow", "unavailable", "no_media") else 502
+        status = 400 if e.code in ("slideshow", "unavailable", "no_media", "ig_blocked") else 502
         raise HTTPException(status_code=status, detail=ERROR_MESSAGES.get(e.code, ERROR_MESSAGES["extract_failed"]))
 
+    data["platform"] = platform
     return data
 
 
@@ -186,9 +190,9 @@ async def api_download(
     if kind not in ("video", "audio"):
         kind = "video"
     try:
-        clean = normalize_and_validate(url)
+        clean, platform = normalize_and_validate(url)
     except ValueError:
-        raise HTTPException(status_code=400, detail=ERROR_MESSAGES["not_tiktok"])
+        raise HTTPException(status_code=400, detail=ERROR_MESSAGES["unsupported"])
 
     tmpdir = tempfile.mkdtemp(prefix="tickless-")
     try:
@@ -209,6 +213,9 @@ async def api_download(
         media_type = "video/mp4"
 
     utf8_name, ascii_name = build_download_filename(title, uploader, real_ext)
+
+    # Count the completed download per platform (non-blocking, never fails).
+    record_download(platform, kind)
 
     def stream_and_cleanup():
         try:

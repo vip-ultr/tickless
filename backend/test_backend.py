@@ -23,12 +23,39 @@ def test_rejects_too_long():
 
 
 def test_accepts_full_link():
-    assert normalize_and_validate(LIVE_URL) == LIVE_URL
+    url, platform = normalize_and_validate(LIVE_URL)
+    assert url == LIVE_URL
+    assert platform == "tiktok"
 
 
 def test_accepts_short_link_and_adds_scheme():
-    out = normalize_and_validate("vm.tiktok.com/ZMabc123/")
-    assert out.startswith("https://vm.tiktok.com/")
+    url, platform = normalize_and_validate("vm.tiktok.com/ZMabc123/")
+    assert url.startswith("https://vm.tiktok.com/")
+    assert platform == "tiktok"
+
+
+def test_detects_instagram():
+    for raw in (
+        "https://www.instagram.com/reel/Cabc123xyz/",
+        "instagram.com/p/Cabc123xyz/",
+        "https://instagr.am/reel/Cabc123xyz/",
+        "https://m.instagram.com/reels/Cabc123xyz/",
+    ):
+        url, platform = normalize_and_validate(raw)
+        assert platform == "instagram", raw
+        assert url.startswith("https://")
+
+
+def test_rejects_unsupported_hosts():
+    for raw in (
+        "https://youtube.com/watch?v=x",
+        "https://facebook.com/watch/?v=1",
+        "https://x.com/user/status/1",
+        "https://nottiktok.com/video/1",
+        "https://tiktok.com.evil.com/video/1",
+    ):
+        with pytest.raises(ValueError):
+            normalize_and_validate(raw)
 
 
 @pytest.mark.live
@@ -95,3 +122,25 @@ def test_visitor_hash_no_raw_ip():
     h = visitor_hash("203.0.113.77")
     assert "203" not in h or "203.0.113.77" not in h
     assert len(h) == 32
+
+
+# ---- instagram ----
+import os as _os
+
+
+def test_ig_blocked_maps_to_clean_error():
+    """Without IG_SESSIONID, IG extraction must fail with ig_blocked, not a raw 500."""
+    if _os.getenv("IG_SESSIONID"):
+        pytest.skip("IG session configured; blocked-path not applicable")
+    with pytest.raises(ExtractionError) as exc:
+        extract("https://www.instagram.com/reel/C-5oXanSnQY/")
+    assert exc.value.code in ("ig_blocked", "unavailable", "extract_failed")
+
+
+@pytest.mark.live
+def test_live_instagram_extraction():
+    """Only runs when an IG session cookie is configured."""
+    if not _os.getenv("IG_SESSIONID"):
+        pytest.skip("IG_SESSIONID not set")
+    data = extract("https://www.instagram.com/reel/C-5oXanSnQY/")
+    assert data["video_url"]

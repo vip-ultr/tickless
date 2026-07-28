@@ -28,8 +28,9 @@ export default function AboutPage() {
             what you saved.
           </p>
           <p className="mt-5 leading-relaxed tx-muted">
-            It is built to grow. TikTok is the first platform. Support for more is planned
-            under the same roof, so one tool covers the places you actually post and watch.
+            It is built to grow. TikTok came first, Instagram is here now. Support for more
+            platforms is planned under the same roof, so one tool covers the places you
+            actually post and watch.
           </p>
         </div>
 

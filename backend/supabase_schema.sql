@@ -76,3 +76,47 @@ returns json language sql stable as $$
     ) d)
   );
 $$;
+
+-- ---------------------------------------------------------------
+-- Per-platform download counters (run in Supabase SQL editor)
+-- One row per platform+kind+day, bumped by a counter (compact like visits).
+create table if not exists downloads (
+  id bigint generated always as identity primary key,
+  platform text not null,
+  kind text not null default 'video',
+  day date not null default (now() at time zone 'utc')::date,
+  count bigint not null default 1,
+  unique (platform, kind, day)
+);
+
+create index if not exists downloads_day_idx on downloads (day);
+
+create or replace function record_download(p_platform text, p_kind text)
+returns void language plpgsql as $$
+begin
+  insert into downloads (platform, kind)
+  values (p_platform, p_kind)
+  on conflict (platform, kind, day)
+  do update set count = downloads.count + 1;
+end $$;
+
+create or replace function download_stats()
+returns json language sql stable as $$
+  select coalesce(json_object_agg(p.platform, p.stats), '{}'::json) from (
+    select platform, json_build_object(
+      'today', (select coalesce(sum(count), 0) from downloads d
+                where d.platform = x.platform and day = (now() at time zone 'utc')::date),
+      'week', (select coalesce(sum(count), 0) from downloads d
+               where d.platform = x.platform and day > (now() at time zone 'utc')::date - 7),
+      'month', (select coalesce(sum(count), 0) from downloads d
+                where d.platform = x.platform and day > (now() at time zone 'utc')::date - 30),
+      'all_time', (select coalesce(sum(count), 0) from downloads d
+                   where d.platform = x.platform),
+      'video', (select coalesce(sum(count), 0) from downloads d
+                where d.platform = x.platform and kind = 'video'),
+      'audio', (select coalesce(sum(count), 0) from downloads d
+                where d.platform = x.platform and kind = 'audio')
+    ) as stats
+    from (select distinct platform from downloads) x
+  ) p;
+$$;

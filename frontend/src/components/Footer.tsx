@@ -10,7 +10,7 @@ export function Footer() {
           <div className="max-w-xs">
             <Wordmark className="text-lg" />
             <p className="mt-3 text-sm tx-muted">
-              The clean way to save TikTok videos.
+              The clean way to save TikTok and Instagram videos.
             </p>
           </div>
           <div className="flex gap-12">
@@ -54,7 +54,7 @@ export function Footer() {
           >
             Optivis Labs
           </a>
-          . Not affiliated with TikTok or ByteDance.{" "}
+          . Not affiliated with TikTok, ByteDance, Instagram, or Meta.{" "}
           <button
             type="button"
             data-cc="show-preferencesModal"

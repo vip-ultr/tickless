@@ -28,6 +28,16 @@ type VisitStats = {
   daily: { visit_day: string; unique_visitors: number; total_visits: number }[];
 };
 
+type PlatformDownloads = {
+  today: number;
+  week: number;
+  month: number;
+  all_time: number;
+  video: number;
+  audio: number;
+};
+type DownloadStats = Record<string, PlatformDownloads>;
+
 const SLOTS = ["leaderboard", "in_content", "result"] as const;
 
 // Recommended creative sizes shown in the admin (must match AdSlot rendering).
@@ -187,6 +197,7 @@ function Dashboard({ token, onLogout }: { token: string; onLogout: () => void })
   const [selectedSlot, setSelectedSlot] = useState<string>("leaderboard");
   const [fileName, setFileName] = useState("");
   const [visits, setVisits] = useState<VisitStats | null>(null);
+  const [downloads, setDownloads] = useState<DownloadStats | null>(null);
 
   const authed = useCallback(
     (path: string, init?: RequestInit) =>
@@ -206,6 +217,10 @@ function Dashboard({ token, onLogout }: { token: string; onLogout: () => void })
     try {
       const vs = await authed("/api/admin/visits");
       if (vs.ok) setVisits(await vs.json());
+    } catch { /* noop */ }
+    try {
+      const ds = await authed("/api/admin/downloads");
+      if (ds.ok) setDownloads(await ds.json());
     } catch { /* noop */ }
   }, [authed, onLogout]);
 
@@ -255,6 +270,28 @@ function Dashboard({ token, onLogout }: { token: string; onLogout: () => void })
         </div>
         <button onClick={onLogout} className="text-sm tx-muted hover:tx">Sign out</button>
       </div>
+
+      {/* Downloads by platform */}
+      {downloads && Object.keys(downloads).length > 0 && (
+        <section className="mt-8">
+          <h2 className="font-semibold">Downloads</h2>
+          <p className="mt-0.5 text-xs tx-muted">Completed downloads counted server-side, per platform.</p>
+          <div className="mt-3 grid gap-3 sm:grid-cols-2">
+            {Object.entries(downloads).map(([platform, d]) => (
+              <div key={platform} className="glass rounded-2xl p-4">
+                <p className="text-xs uppercase tracking-wider tx-muted">{platform}</p>
+                <p className="mt-1 text-2xl font-semibold tx">{d.all_time.toLocaleString()}</p>
+                <p className="mt-0.5 text-xs tx-muted">
+                  {d.today.toLocaleString()} today · {d.week.toLocaleString()} this week · {d.month.toLocaleString()} this month
+                </p>
+                <p className="mt-0.5 text-xs tx-muted">
+                  {d.video.toLocaleString()} video · {d.audio.toLocaleString()} audio
+                </p>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
 
       {/* Site traffic */}
       {visits && (
