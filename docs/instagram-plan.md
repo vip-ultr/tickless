@@ -12,7 +12,7 @@ Goal: one input box, auto-detect platform from the pasted link, download Instagr
 5. Instagram extraction risk: IG is more aggressively anti-bot than TikTok. yt-dlp handles public Reels without login today; if IG starts demanding login we show a clear error, never ask users for credentials.
 6. Downloads counter lives in Supabase (new downloads table), counted server-side in /api/download success path only (a real completed file stream, not extract calls).
 7. Copy changes sitewide: "TikTok" as the sole subject becomes "TikTok and Instagram" (hero, FAQ, about, legal, metadata). Wordmark and brand unchanged. No em dashes.
-8. SEO: homepage stays the TikTok keyword surface (per growth strategy). New /instagram page is the Instagram keyword surface with its own H1/FAQ/HowTo targeting "instagram video downloader", "download instagram reels". Both pages share the same Downloader component.
+8. SEO: single-page product per user decision. No /instagram subpage; the homepage carries both platforms.
 
 ## 1. Backend changes
 

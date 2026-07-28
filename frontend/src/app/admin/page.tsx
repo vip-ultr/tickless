@@ -307,10 +307,9 @@ function Dashboard({ token, onLogout }: { token: string; onLogout: () => void })
               ["30 days", visits.month],
               ["12 months", visits.year],
             ] as const).map(([label, b]) => (
-              <div key={label} className="glass rounded-2xl p-4">
+              <div key={label} className="glass min-w-0 rounded-2xl p-4">
                 <p className="text-xs uppercase tracking-wider tx-muted">{label}</p>
                 <p className="mt-1 text-2xl font-semibold tx">{b.unique_visitors.toLocaleString()}</p>
-                <p className="mt-0.5 text-xs tx-muted">{b.total_visits.toLocaleString()} visits</p>
               </div>
             ))}
           </div>
@@ -339,7 +338,7 @@ function Dashboard({ token, onLogout }: { token: string; onLogout: () => void })
       <form onSubmit={create} className="glass mt-8 rounded-3xl p-5 md:p-6">
         <h2 className="font-semibold">New ad</h2>
         <div className="mt-4 grid gap-4 md:grid-cols-2">
-          <div>
+          <div className="min-w-0">
             <label className="mb-1.5 block text-xs font-medium uppercase tracking-wider tx-muted">
               Slot
             </label>
@@ -348,7 +347,7 @@ function Dashboard({ token, onLogout }: { token: string; onLogout: () => void })
               Recommended size: {SLOT_SIZE_HINTS[selectedSlot]}
             </p>
           </div>
-          <div>
+          <div className="min-w-0">
             <label className="mb-1.5 block text-xs font-medium uppercase tracking-wider tx-muted">
               Click-through URL
             </label>
@@ -357,16 +356,16 @@ function Dashboard({ token, onLogout }: { token: string; onLogout: () => void })
               type="url"
               required
               placeholder="https://example.com"
-              className="glass w-full rounded-xl px-4 py-3 text-sm outline-none tx placeholder:tx-muted"
+              className="glass w-full min-w-0 rounded-xl px-4 py-3 text-sm outline-none tx placeholder:tx-muted"
             />
           </div>
-          <div>
+          <div className="min-w-0">
             <label className="mb-1.5 block text-xs font-medium uppercase tracking-wider tx-muted">
               Creative image
             </label>
             <label className="glass flex w-full cursor-pointer items-center gap-3 rounded-xl px-4 py-3 text-sm">
               <ImagePlus size={16} className="shrink-0 tx-accent" />
-              <span className={`truncate ${fileName ? "tx" : "tx-muted"}`}>
+              <span className={`min-w-0 flex-1 truncate ${fileName ? "tx" : "tx-muted"}`}>
                 {fileName || "Choose an image (PNG, JPG, WebP, GIF)"}
               </span>
               <input

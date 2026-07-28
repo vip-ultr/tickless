@@ -6,7 +6,7 @@ import { ConsentBanner } from "@/components/ConsentBanner";
 import { ShieldOff, Sparkles, MonitorSmartphone, EyeOff, BadgeCheck, AudioLines } from "lucide-react";
 
 const STEPS = [
-  { n: "1", title: "Copy the link", body: "In TikTok, tap Share, then Copy link." },
+  { n: "1", title: "Copy the link", body: "In TikTok or Instagram, tap Share, then Copy link." },
   { n: "2", title: "Paste it here", body: "Drop the link in the box above and hit Download." },
   { n: "3", title: "Save the clean file", body: "Pick HD, standard, or audio, and it saves straight to your device." },
 ];
@@ -30,7 +30,7 @@ export default function Home() {
         <AdSlot slot="leaderboard" className="pt-6" />
         {/* Hero */}
         <section className="pt-10 md:pt-16">
-          <p className="mb-4 text-sm font-medium tx-brand">Free TikTok downloader</p>
+          <p className="mb-4 text-sm font-medium tx-brand">Free TikTok &amp; Instagram downloader</p>
           <h1 className="text-4xl font-extrabold leading-tight tracking-tight md:text-6xl">
             Save any TikTok without the <span className="tx-brand">watermark</span>.
           </h1>
