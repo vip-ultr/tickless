@@ -335,6 +335,6 @@ Rules: NO pop-ups, NO auto-play sound, NO sticky full-width mobile overlays, max
 21. **Admin panel:** `/admin` login-protected, ad CRUD + image upload + stats (8.5-K).
 22. **Ad storage:** Supabase free tier (Postgres + Storage), persistent, not Render Postgres (8.5-K).
 23. **NO gradients anywhere** (user-approved final design): solid colors only. Buttons/CTAs are GREEN (--brand-accent lime). Wordmark = white "Tick" + green "less". Cyan (--brand-primary) used for secondary accents; cyan+green alternate on feature icons; subtle cyan+green hints in the background mesh.
-24. **Glass recipe (approved):** cards `.glass` = blur(24px) sat(180%), light tint, inset top highlight. Navs + bottom sheet + dropdowns `.glass-strong` = blur(200px) sat(160%), oklch(0.16 0.02 240 / 0.88) tint. Non-blur fallbacks included.
+24. **Glass recipe (approved):** cards `.glass` = blur(24px) sat(180%), light tint, inset top highlight. Navs + bottom sheet + dropdowns `.glass-strong` = blur(64px) sat(160%), oklch(0.16 0.02 240 / 0.96) tint (opacity does the isolation, blur does the frost). Non-blur fallbacks included.
 25. **Text colors via custom @utility classes** (`tx`, `tx-muted`, `tx-brand`, `tx-accent`) — Tailwind v4 arbitrary-value text classes proved unreliable in dev; never use `text-[var(--…)]` in this codebase.
 26. **Mobile bottom sheet (approved):** 52vh, drag handle, icon card links with descriptions, glass-strong.
