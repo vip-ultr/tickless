@@ -38,3 +38,42 @@ def test_live_extraction():
     assert data["video_url"]
     assert data["author"] == "scout2015"
     assert data["duration"] == 10
+
+
+# ---- download filename builder ----
+from main import build_download_filename
+
+
+def test_filename_basic():
+    utf8, ascii_ = build_download_filename("Scramble up ur name & I'll try to guess it", "Scout", "mp4")
+    assert utf8 == "Scout - Scramble up ur name & I'll try to guess it - Tickless.mp4"
+    assert ascii_ == utf8  # already ascii
+
+
+def test_filename_strips_hashtags_and_forbidden_chars():
+    utf8, _ = build_download_filename('cool video #fyp #viral <>:"/\\|?*', "user", "mp4")
+    assert "#" not in utf8
+    for ch in '<>:"/\\|?*':
+        assert ch not in utf8
+    assert utf8.startswith("user - cool video")
+    assert utf8.endswith(" - Tickless.mp4")
+
+
+def test_filename_empty_title_falls_back():
+    utf8, _ = build_download_filename("", "", "mp4")
+    assert utf8 == "tiktok video - Tickless.mp4"
+    utf8a, _ = build_download_filename("#onlyhashtags #fyp", "", "mp3")
+    assert utf8a == "tiktok audio - Tickless.mp3"
+
+
+def test_filename_unicode_gets_ascii_fallback():
+    utf8, ascii_ = build_download_filename("café vidéo 日本語", "ユーザー", "mp4")
+    assert utf8 == "ユーザー - café vidéo 日本語 - Tickless.mp4"
+    assert ascii_.isascii()
+    assert ascii_.endswith("Tickless.mp4")
+
+
+def test_filename_length_capped():
+    utf8, _ = build_download_filename("x" * 300, "verylonguploader", "mp4")
+    stem = utf8.rsplit(".", 1)[0]
+    assert len(stem) <= 80 + len(" - Tickless")

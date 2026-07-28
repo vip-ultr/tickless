@@ -7,8 +7,10 @@ Endpoints:
 """
 import logging
 import os
+import re
 import shutil
 import tempfile
+import unicodedata
 from urllib.parse import quote
 
 from dotenv import load_dotenv
@@ -70,6 +72,44 @@ async def _rate_limit_handler(request: Request, exc: RateLimitExceeded):
 
 class ExtractRequest(BaseModel):
     url: str
+
+
+# Characters not allowed in filenames on Windows/macOS/Android/iOS.
+_FILENAME_FORBIDDEN = re.compile(r'[<>:"/\\|?*\x00-\x1f]')
+# Hashtag tokens (with the tag text) - stripped, they are noise in filenames.
+_HASHTAG = re.compile(r"#\S+")
+
+
+def build_download_filename(title: str, uploader: str, ext: str) -> tuple[str, str]:
+    """Build a clean, human-readable filename for the user's device.
+
+    Pattern: "<uploader> - <title> - Tickless.<ext>" with graceful fallbacks
+    when parts are missing. Returns (utf8_name, ascii_fallback) for the
+    Content-Disposition filename*= and filename= fields respectively.
+    """
+    title = _HASHTAG.sub("", title or "")
+    # Collapse whitespace, strip filesystem-forbidden characters.
+    parts = []
+    for raw in (uploader or "", title):
+        s = _FILENAME_FORBIDDEN.sub("", raw)
+        s = re.sub(r"\s+", " ", s).strip(" .-_")
+        if s:
+            parts.append(s)
+
+    # Keep the total stem comfortably under filesystem limits.
+    stem = " - ".join(parts)[:80].rstrip(" .-_")
+    if not stem:
+        stem = "tiktok video" if ext == "mp4" else "tiktok audio"
+    stem = f"{stem} - Tickless"
+
+    utf8_name = f"{stem}.{ext}"
+    # ASCII fallback for the plain filename= field (legacy browsers).
+    ascii_stem = (
+        unicodedata.normalize("NFKD", stem).encode("ascii", "ignore").decode("ascii")
+    )
+    ascii_stem = re.sub(r"\s+", " ", ascii_stem).strip(" .-_") or "Tickless download"
+    ascii_name = f"{ascii_stem}.{ext}".replace('"', "")
+    return utf8_name, ascii_name
 
 
 def _require_key(x_tickless_key: str | None):
@@ -150,7 +190,7 @@ async def api_download(
 
     tmpdir = tempfile.mkdtemp(prefix="tickless-")
     try:
-        path, title = await run_in_threadpool(download_media, clean, tmpdir, kind)
+        path, title, uploader = await run_in_threadpool(download_media, clean, tmpdir, kind)
     except Exception:
         logging.exception("download_media failed for %s", clean)
         shutil.rmtree(tmpdir, ignore_errors=True)
@@ -165,7 +205,8 @@ async def api_download(
         media_type = "audio/mpeg" if real_ext == "mp3" else "audio/mp4"
     else:
         media_type = "video/mp4"
-    safe_name = quote(f"{title}.{real_ext}")
+
+    utf8_name, ascii_name = build_download_filename(title, uploader, real_ext)
 
     def stream_and_cleanup():
         try:
@@ -179,7 +220,12 @@ async def api_download(
         stream_and_cleanup(),
         media_type=media_type,
         headers={
-            "Content-Disposition": f"attachment; filename*=UTF-8''{safe_name}",
+            # filename= is the ASCII fallback; filename*= is the canonical
+            # UTF-8 name modern browsers use (RFC 6266).
+            "Content-Disposition": (
+                f'attachment; filename="{ascii_name}"; '
+                f"filename*=UTF-8''{quote(utf8_name)}"
+            ),
             "Content-Length": str(os.path.getsize(path)),
         },
     )

@@ -19,11 +19,11 @@ def extract_raw(url: str) -> dict:
         return dict(ydl.extract_info(url, download=False))
 
 
-def download_media(url: str, dest_dir: str, kind: str = "video") -> tuple[str, str]:
+def download_media(url: str, dest_dir: str, kind: str = "video") -> tuple[str, str, str]:
     """Download the clean media server-side via yt-dlp (it handles TikTok's
     CDN auth/headers correctly, unlike a plain HTTP client).
 
-    Returns (file_path, title). Raises on failure.
+    Returns (file_path, title, uploader). Raises on failure.
     """
     is_audio = kind == "audio"
     opts = {
@@ -60,11 +60,12 @@ def download_media(url: str, dest_dir: str, kind: str = "video") -> tuple[str, s
                 last_err = e
         else:
             raise last_err if last_err else DownloadError("extraction failed")
-        title = (info.get("title") or "tickless")[:60]
+        title = (info.get("title") or "").strip()
+        uploader = (info.get("uploader") or info.get("creator") or "").strip()
         path = ydl.prepare_filename(info)
         if is_audio and shutil.which("ffmpeg"):
             path = path.rsplit(".", 1)[0] + ".mp3"
-        return path, title
+        return path, title, uploader
 
 
 class ExtractionError(Exception):
