@@ -19,6 +19,15 @@ type Ad = {
   created_at: string;
 };
 
+type VisitBucket = { unique_visitors: number; total_visits: number };
+type VisitStats = {
+  today: VisitBucket;
+  week: VisitBucket;
+  month: VisitBucket;
+  year: VisitBucket;
+  daily: { visit_day: string; unique_visitors: number; total_visits: number }[];
+};
+
 const SLOTS = ["leaderboard", "in_content", "result"] as const;
 
 // Recommended creative sizes shown in the admin (must match AdSlot rendering).
@@ -177,6 +186,7 @@ function Dashboard({ token, onLogout }: { token: string; onLogout: () => void })
   const [confirmDelete, setConfirmDelete] = useState<Ad | null>(null);
   const [selectedSlot, setSelectedSlot] = useState<string>("leaderboard");
   const [fileName, setFileName] = useState("");
+  const [visits, setVisits] = useState<VisitStats | null>(null);
 
   const authed = useCallback(
     (path: string, init?: RequestInit) =>
@@ -192,6 +202,11 @@ function Dashboard({ token, onLogout }: { token: string; onLogout: () => void })
     if (res.status === 401) return onLogout();
     if (res.status === 503) { setError("Ad system not configured yet. Set the Supabase env vars on the backend."); return; }
     setAds(await res.json());
+    // Visit stats are non-critical; ignore failures silently.
+    try {
+      const vs = await authed("/api/admin/visits");
+      if (vs.ok) setVisits(await vs.json());
+    } catch { /* noop */ }
   }, [authed, onLogout]);
 
   useEffect(() => {
@@ -240,6 +255,48 @@ function Dashboard({ token, onLogout }: { token: string; onLogout: () => void })
         </div>
         <button onClick={onLogout} className="text-sm tx-muted hover:tx">Sign out</button>
       </div>
+
+      {/* Site traffic */}
+      {visits && (
+        <section className="mt-8">
+          <h2 className="font-semibold">Site traffic</h2>
+          <p className="mt-0.5 text-xs tx-muted">
+            Unique visitors by daily-hashed IP. Raw IPs are never stored.
+          </p>
+          <div className="mt-3 grid grid-cols-2 gap-3 md:grid-cols-4">
+            {([
+              ["Today", visits.today],
+              ["7 days", visits.week],
+              ["30 days", visits.month],
+              ["12 months", visits.year],
+            ] as const).map(([label, b]) => (
+              <div key={label} className="glass rounded-2xl p-4">
+                <p className="text-xs uppercase tracking-wider tx-muted">{label}</p>
+                <p className="mt-1 text-2xl font-semibold tx">{b.unique_visitors.toLocaleString()}</p>
+                <p className="mt-0.5 text-xs tx-muted">{b.total_visits.toLocaleString()} visits</p>
+              </div>
+            ))}
+          </div>
+          {visits.daily.length > 1 && (
+            <div className="glass mt-3 rounded-2xl p-4">
+              <p className="text-xs uppercase tracking-wider tx-muted">Last 30 days, unique visitors</p>
+              <div className="mt-3 flex h-24 items-end gap-1">
+                {visits.daily.map((d) => {
+                  const max = Math.max(...visits.daily.map((x) => x.unique_visitors), 1);
+                  return (
+                    <div
+                      key={d.visit_day}
+                      title={`${d.visit_day}: ${d.unique_visitors} unique, ${d.total_visits} visits`}
+                      className="flex-1 rounded-t bg-[var(--brand-accent)] opacity-80"
+                      style={{ height: `${Math.max((d.unique_visitors / max) * 100, 4)}%` }}
+                    />
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </section>
+      )}
 
       {/* Upload form */}
       <form onSubmit={create} className="glass mt-8 rounded-3xl p-5 md:p-6">

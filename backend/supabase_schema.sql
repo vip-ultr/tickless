@@ -25,3 +25,54 @@ begin
 end $$;
 
 -- Storage: create a PUBLIC bucket named 'ad-creatives' in the Supabase dashboard.
+
+-- ---------------------------------------------------------------
+-- Site visit analytics (run in Supabase SQL editor after the ads DDL)
+-- Privacy: visitor_hash is sha256(ip + UTC-day salt), so raw IPs are
+-- never stored and hashes cannot be linked across days.
+create table if not exists visits (
+  id bigint generated always as identity primary key,
+  visitor_hash text not null,
+  visit_day date not null default (now() at time zone 'utc')::date,
+  hits integer not null default 1,
+  first_seen timestamptz not null default now(),
+  last_seen timestamptz not null default now(),
+  unique (visitor_hash, visit_day)
+);
+
+create index if not exists visits_day_idx on visits (visit_day);
+
+-- One row per visitor per day; repeat loads bump hits.
+create or replace function record_visit(p_hash text)
+returns void language plpgsql as $$
+begin
+  insert into visits (visitor_hash)
+  values (p_hash)
+  on conflict (visitor_hash, visit_day)
+  do update set hits = visits.hits + 1, last_seen = now();
+end $$;
+
+-- Aggregates for the admin dashboard.
+create or replace function visit_stats()
+returns json language sql stable as $$
+  select json_build_object(
+    'today', (select json_build_object(
+      'unique_visitors', count(*), 'total_visits', coalesce(sum(hits), 0))
+      from visits where visit_day = (now() at time zone 'utc')::date),
+    'week', (select json_build_object(
+      'unique_visitors', count(distinct visitor_hash), 'total_visits', coalesce(sum(hits), 0))
+      from visits where visit_day > (now() at time zone 'utc')::date - 7),
+    'month', (select json_build_object(
+      'unique_visitors', count(distinct visitor_hash), 'total_visits', coalesce(sum(hits), 0))
+      from visits where visit_day > (now() at time zone 'utc')::date - 30),
+    'year', (select json_build_object(
+      'unique_visitors', count(distinct visitor_hash), 'total_visits', coalesce(sum(hits), 0))
+      from visits where visit_day > (now() at time zone 'utc')::date - 365),
+    'daily', (select coalesce(json_agg(d order by d.visit_day), '[]'::json) from (
+      select visit_day, count(*) as unique_visitors, sum(hits) as total_visits
+      from visits
+      where visit_day > (now() at time zone 'utc')::date - 30
+      group by visit_day
+    ) d)
+  );
+$$;

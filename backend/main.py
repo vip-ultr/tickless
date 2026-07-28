@@ -26,6 +26,7 @@ from starlette.responses import JSONResponse, StreamingResponse
 from extractor import ExtractionError, download_media, extract
 from validation import normalize_and_validate
 from ads import router as ads_router
+from analytics import router as analytics_router
 
 load_dotenv()
 
@@ -60,6 +61,7 @@ app.add_middleware(
 )
 
 app.include_router(ads_router)
+app.include_router(analytics_router)
 
 
 @app.exception_handler(RateLimitExceeded)

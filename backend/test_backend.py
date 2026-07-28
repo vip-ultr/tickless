@@ -77,3 +77,21 @@ def test_filename_length_capped():
     utf8, _ = build_download_filename("x" * 300, "verylonguploader", "mp4")
     stem = utf8.rsplit(".", 1)[0]
     assert len(stem) <= 80 + len(" - Tickless")
+
+
+# ---- visit analytics ----
+from analytics import visitor_hash
+
+
+def test_visitor_hash_stable_within_day():
+    assert visitor_hash("1.2.3.4") == visitor_hash("1.2.3.4")
+
+
+def test_visitor_hash_differs_per_ip():
+    assert visitor_hash("1.2.3.4") != visitor_hash("5.6.7.8")
+
+
+def test_visitor_hash_no_raw_ip():
+    h = visitor_hash("203.0.113.77")
+    assert "203" not in h or "203.0.113.77" not in h
+    assert len(h) == 32
