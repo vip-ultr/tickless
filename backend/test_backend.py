@@ -142,5 +142,5 @@ def test_live_instagram_extraction():
     """Only runs when an IG session cookie is configured."""
     if not _os.getenv("IG_SESSIONID"):
         pytest.skip("IG_SESSIONID not set")
-    data = extract("https://www.instagram.com/reel/C-5oXanSnQY/")
+    data = extract("https://www.instagram.com/reel/DTiy8MKEqux/")
     assert data["video_url"]
