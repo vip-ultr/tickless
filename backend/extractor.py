@@ -14,6 +14,10 @@ from validation import is_photo_slideshow
 # logged-in browser) to enable Instagram support. Without it, IG links fail
 # with a clean user-facing error.
 IG_SESSIONID = os.getenv("IG_SESSIONID", "").strip()
+# Browsers show the cookie URL-encoded (%3A for ':'); the jar needs it raw.
+if "%" in IG_SESSIONID:
+    from urllib.parse import unquote
+    IG_SESSIONID = unquote(IG_SESSIONID)
 
 _ig_cookie_file: str | None = None
 
