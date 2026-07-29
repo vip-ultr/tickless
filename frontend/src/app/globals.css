@@ -166,27 +166,29 @@
   --cc-toggle-on-bg: var(--brand-accent);
   --cc-cookie-category-block-bg: oklch(0.17 0.02 240);
   --cc-cookie-category-block-hover-bg: oklch(0.22 0.02 240);
-  --cc-modal-border-radius: 1rem;
-  --cc-btn-border-radius: 0.65rem;
-  font-size: 13px;
+  --cc-modal-border-radius: 0.75rem;
+  --cc-btn-border-radius: 0.5rem;
+  font-size: 12px;
 }
 /* Compact consent box */
 #cc-main .cm {
-  max-width: 22rem;
+  max-width: 18rem;
   padding: 0;
 }
-#cc-main .cm__title { font-size: 0.9rem; }
-#cc-main .cm__desc { font-size: 0.78rem; line-height: 1.45; }
-#cc-main .cm__btn { font-size: 0.78rem; padding: 0.5rem 0.8rem; }
+#cc-main .cm__title { font-size: 0.82rem; margin-bottom: 0.4rem; }
+#cc-main .cm__desc { font-size: 0.72rem; line-height: 1.4; }
+#cc-main .cm__btn { font-size: 0.72rem; padding: 0.4rem 0.7rem; }
+#cc-main .cm__btns { gap: 0.4rem; }
 @media (max-width: 640px) {
   #cc-main .cm {
-    max-width: calc(100vw - 1.5rem);
-    margin: 0.75rem;
+    max-width: calc(100vw - 1.25rem);
+    margin: 0.6rem;
   }
 }
 /* Compact preferences modal */
-#cc-main .pm { max-width: 26rem; }
-#cc-main .pm__title { font-size: 0.9rem; }
-#cc-main .pm__section-title { font-size: 0.8rem; }
-#cc-main .pm__section-desc { font-size: 0.75rem; }
-#cc-main .pm__btn { font-size: 0.78rem; padding: 0.5rem 0.8rem; }
+#cc-main .pm { max-width: 22rem; }
+#cc-main .pm__title { font-size: 0.82rem; }
+#cc-main .pm__section-title { font-size: 0.75rem; }
+#cc-main .pm__section-desc { font-size: 0.72rem; line-height: 1.4; }
+#cc-main .pm__btn { font-size: 0.72rem; padding: 0.4rem 0.7rem; }
+#cc-main .pm__section { padding: 0.75rem; }
