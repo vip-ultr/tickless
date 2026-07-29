@@ -6,7 +6,7 @@ import { ConsentBanner } from "@/components/ConsentBanner";
 import { ShieldOff, Sparkles, MonitorSmartphone, EyeOff, BadgeCheck, AudioLines } from "lucide-react";
 
 const STEPS = [
-  { n: "1", title: "Copy the link", body: "In TikTok or Instagram, tap Share, then Copy link." },
+  { n: "1", title: "Copy the link", body: "In TikTok, Instagram, or YouTube, tap Share, then Copy link." },
   { n: "2", title: "Paste it here", body: "Drop the link in the box above and hit Download." },
   { n: "3", title: "Save the clean file", body: "Pick HD, standard, or audio, and it saves straight to your device." },
 ];
@@ -30,12 +30,12 @@ export default function Home() {
         <AdSlot slot="leaderboard" className="pt-6" />
         {/* Hero */}
         <section className="pt-10 md:pt-16">
-          <p className="mb-4 text-sm font-medium tx-brand">Free TikTok &amp; Instagram downloader</p>
+          <p className="mb-4 text-sm font-medium tx-brand">Free TikTok, Instagram &amp; YouTube downloader</p>
           <h1 className="text-4xl font-extrabold leading-tight tracking-tight md:text-6xl">
-            Save any TikTok without the <span className="tx-brand">watermark</span>.
+            Save any TikTok, Instagram Reel, or YouTube video without the <span className="tx-brand">watermark</span>.
           </h1>
           <p className="mt-5 max-w-xl text-base tx-muted md:text-lg">
-            Paste the link, pick your quality, and the clean video lands on your device in seconds. Works with Instagram Reels too. No app to install, no account to make.
+            Paste the link, pick your quality, and the clean video lands on your device in seconds. No app to install, no account to make.
           </p>
           <div className="mt-10">
             <Downloader />

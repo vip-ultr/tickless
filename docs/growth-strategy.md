@@ -15,7 +15,7 @@ tickless.vercel.app cannot build authority: Google discounts freehost subdomains
 
 ## Phase 1: on-page SEO (copy the winners exactly)
 
-1. Title pattern: exact-match keyword first, brand last. "TikTok Downloader - Download TikTok Videos Without Watermark | Tickless". H1 "TikTok Video Downloader", H2 "Download TikTok videos online".
+1. Title pattern: exact-match keyword first, brand last. "TikTok, Instagram & YouTube Downloader - Download HD Videos Without Watermark | Tickless". H1 "TikTok, Instagram & YouTube Video Downloader", H2 "Download TikTok, Instagram Reel, and YouTube videos online".
 2. Grow the FAQ to ~13 keyword-loaded Q&A pairs (snaptik's count), one per intent: no watermark, HD, mp3, iPhone/Android, is it free, is it legal, slideshow, story, etc. Visible text AND FAQPage JSON-LD.
 3. Visible 3-step How-To section + HowTo JSON-LD.
 4. WebApplication JSON-LD (applicationCategory MultimediaApplication). Never fake AggregateRating (ssstik self-asserts 4.9/297k reviews; it works until Google nukes it).

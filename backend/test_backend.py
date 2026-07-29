@@ -1,4 +1,6 @@
 """Tests for URL validation and live extraction."""
+import os as _os
+
 import pytest
 
 from validation import normalize_and_validate
@@ -14,7 +16,7 @@ def test_rejects_empty():
 
 def test_rejects_non_tiktok():
     with pytest.raises(ValueError):
-        normalize_and_validate("https://youtube.com/watch?v=x")
+        normalize_and_validate("https://facebook.com/watch/?v=1")
 
 
 def test_rejects_too_long():
@@ -46,9 +48,20 @@ def test_detects_instagram():
         assert url.startswith("https://")
 
 
+def test_detects_youtube():
+    for raw in (
+        "https://www.youtube.com/watch?v=abc123",
+        "https://youtu.be/abc123",
+        "https://m.youtube.com/watch?v=abc123",
+        "https://music.youtube.com/watch?v=abc123",
+    ):
+        url, platform = normalize_and_validate(raw)
+        assert platform == "youtube", raw
+        assert url.startswith("https://")
+
+
 def test_rejects_unsupported_hosts():
     for raw in (
-        "https://youtube.com/watch?v=x",
         "https://facebook.com/watch/?v=1",
         "https://x.com/user/status/1",
         "https://nottiktok.com/video/1",
@@ -72,7 +85,9 @@ from main import build_download_filename
 
 
 def test_filename_basic():
-    utf8, ascii_ = build_download_filename("Scramble up ur name & I'll try to guess it", "Scout", "mp4")
+    utf8, ascii_ = build_download_filename(
+        "Scramble up ur name & I'll try to guess it", "Scout", "mp4"
+    )
     assert utf8 == "Scout - Scramble up ur name & I'll try to guess it - Tickless.mp4"
     assert ascii_ == utf8  # already ascii
 
@@ -91,6 +106,13 @@ def test_filename_empty_title_falls_back():
     assert utf8 == "tiktok video - Tickless.mp4"
     utf8a, _ = build_download_filename("#onlyhashtags #fyp", "", "mp3")
     assert utf8a == "tiktok audio - Tickless.mp3"
+
+
+def test_filename_empty_title_falls_back_for_youtube():
+    utf8v, _ = build_download_filename("", "", "mp4", platform="youtube")
+    assert utf8v == "youtube video - Tickless.mp4"
+    utf8a, _ = build_download_filename("", "", "mp3", platform="youtube")
+    assert utf8a == "youtube audio - Tickless.mp3"
 
 
 def test_filename_unicode_gets_ascii_fallback():
@@ -125,9 +147,6 @@ def test_visitor_hash_no_raw_ip():
 
 
 # ---- instagram ----
-import os as _os
-
-
 def test_ig_blocked_maps_to_clean_error():
     """Without IG_SESSIONID, IG extraction must fail with ig_blocked, not a raw 500."""
     if _os.getenv("IG_SESSIONID"):

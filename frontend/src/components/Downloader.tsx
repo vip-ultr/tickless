@@ -14,7 +14,7 @@ type Result = {
   video_url: string;
   audio_url: string | null;
   height: number | null;
-  platform?: "tiktok" | "instagram";
+  platform?: "tiktok" | "instagram" | "youtube";
 };
 
 type State =
@@ -83,8 +83,8 @@ export function Downloader() {
           <input
             value={url}
             onChange={(e) => setUrl(e.target.value)}
-            aria-label="TikTok or Instagram video link"
-            placeholder="Paste your TikTok or Instagram link"
+            aria-label="TikTok, Instagram, or YouTube link"
+            placeholder="Paste your TikTok, Instagram, or YouTube link"
             style={{ color: "var(--text-primary)", caretColor: "var(--brand-accent)" }}
             className="w-full bg-transparent py-3 font-mono text-sm outline-none placeholder:tx-muted"
           />
@@ -106,7 +106,7 @@ export function Downloader() {
         </button>
       </form>
       <p className="mt-3 px-2 text-xs tx-muted">
-        Works with tiktok.com, vm.tiktok.com, instagram.com and short links.
+        Works with tiktok.com, vm.tiktok.com, instagram.com, youtube.com and short links.
       </p>
 
       {/* States */}
@@ -173,7 +173,7 @@ function ResultCard({ data, sourceUrl, onReset }: { data: Result; sourceUrl: str
         <div className="min-w-0 flex-1">
           <p className="line-clamp-2 text-sm font-medium">{data.title}</p>
           <p className="mt-1 text-xs tx-muted">
-            {data.platform === "instagram" ? "Instagram" : "TikTok"} · @{data.author}
+            {data.platform === "instagram" ? "Instagram" : data.platform === "youtube" ? "YouTube" : "TikTok"} · @{data.author}
             {data.duration ? ` · ${data.duration}s` : ""}
             {data.height ? ` · ${data.height}p` : ""}
           </p>

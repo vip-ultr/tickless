@@ -29,6 +29,18 @@ PLATFORMS: dict[str, dict] = {
         },
         "noun": "instagram",
     },
+    "youtube": {
+        "display": "YouTube",
+        "hosts": {
+            "youtube.com",
+            "www.youtube.com",
+            "m.youtube.com",
+            "youtu.be",
+            "yt.be",
+            "music.youtube.com",
+        },
+        "noun": "youtube",
+    },
 }
 
 

@@ -39,13 +39,15 @@ ALLOWED_ORIGINS = [o.strip() for o in os.getenv(
 # Known-good link used by the daily health check.
 HEALTHCHECK_URL = "https://www.tiktok.com/@scout2015/video/6718335390845095173"
 
+HEALTHCHECK_URL_YOUTUBE = "https://www.youtube.com/watch?v=2lAe1cqCOXo"
+
 # User-facing error messages keyed by internal code.
 ERROR_MESSAGES = {
-    "empty": "Paste a TikTok or Instagram link to get started.",
+    "empty": "Paste a TikTok, Instagram, or YouTube link to get started.",
     "too_long": "That link is too long to be a real video URL.",
-    "unsupported": "That does not look like a TikTok or Instagram link. Check it and try again.",
+    "unsupported": "That does not look like a TikTok, Instagram, or YouTube link. Check it and try again.",
     # Legacy alias kept so older callers/tests keep working.
-    "not_tiktok": "That does not look like a TikTok or Instagram link. Check it and try again.",
+    "not_tiktok": "That does not look like a TikTok, Instagram, or YouTube link. Check it and try again.",
     "unavailable": "We could not reach this video. It may be private, removed, or region locked.",
     "slideshow": "This is a photo post. Photo to video is coming soon. Video posts work right now.",
     "no_media": "We could not find a downloadable video at that link.",
@@ -86,7 +88,9 @@ _FILENAME_FORBIDDEN = re.compile(r'[<>:"/\\|?*\x00-\x1f]')
 _HASHTAG = re.compile(r"#\S+")
 
 
-def build_download_filename(title: str, uploader: str, ext: str) -> tuple[str, str]:
+def build_download_filename(
+    title: str, uploader: str, ext: str, platform: str = "tiktok"
+) -> tuple[str, str]:
     """Build a clean, human-readable filename for the user's device.
 
     Pattern: "<uploader> - <title> - Tickless.<ext>" with graceful fallbacks
@@ -105,7 +109,10 @@ def build_download_filename(title: str, uploader: str, ext: str) -> tuple[str, s
     # Keep the total stem comfortably under filesystem limits.
     stem = " - ".join(parts)[:80].rstrip(" .-_")
     if not stem:
-        stem = "tiktok video" if ext == "mp4" else "tiktok audio"
+        if platform == "youtube":
+            stem = "youtube video" if ext == "mp4" else "youtube audio"
+        else:
+            stem = "tiktok video" if ext == "mp4" else "tiktok audio"
     stem = f"{stem} - Tickless"
 
     utf8_name = f"{stem}.{ext}"
