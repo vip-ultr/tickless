@@ -1,4 +1,5 @@
 FROM node:24-alpine AS base
+RUN apk add --no-cache git
 ENV PNPM_HOME="/pnpm"
 ENV PATH="$PNPM_HOME:$PATH"
 
@@ -19,12 +20,16 @@ WORKDIR /app
 
 COPY --from=build --chown=node:node /prod/api /app
 RUN if [ -d /app/.git ]; then cp -r /app/.git /app/.git; fi
-RUN mkdir -p /app/.git/objects /app/.git/refs/heads /app/.git/logs && \
-    echo "ref: refs/heads/main" > /app/.git/HEAD && \
-    printf "[core]\n\trepositoryformatversion = 0\n\tfilemode = true\n\tbare = false\n\tlogallrefupdates = true\n" > /app/.git/config && \
-    touch /app/.git/objects/pack && \
-    touch /app/.git/refs/heads/main && \
-    printf "0000000000000000000000000000000000000000 0000000000000000000000000000000000000000\n" > /app/.git/logs/HEAD
+# Cobalt's version-info reads git metadata at startup.
+# Render's Docker build context excludes .git via .dockerignore,
+# so create a minimal valid repo here.
+RUN cd /app && \
+    git init && \
+    git config user.email "ci@example.com" && \
+    git config user.name "CI" && \
+    git add -A && \
+    git commit -m "chore: cobalt deploy snapshot" && \
+    git remote remove origin || true
 
 USER node
 
