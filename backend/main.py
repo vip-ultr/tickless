@@ -166,7 +166,7 @@ async def api_extract(
         raise HTTPException(status_code=400, detail=ERROR_MESSAGES.get(code, ERROR_MESSAGES["unsupported"]))
 
     try:
-        if platform in ("instagram", "youtube"):
+        if platform == "instagram":
             data = cobalt_extract(url)
         else:
             data = extract(url)

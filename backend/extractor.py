@@ -39,10 +39,44 @@ def _ig_cookiefile() -> str | None:
     return path
 
 
-def _platform_opts(url: str) -> dict:
-    """Extra yt-dlp options needed for specific platforms."""
+# YouTube started challenging anonymous server-side requests from some
+# cloud ranges. We can reuse browser cookies through either a raw cookie
+# env var or yt-dlp's browser profile extraction.
+YOUTUBE_COOKIE = os.getenv("YOUTUBE_COOKIE", "").strip()
+YOUTUBE_COOKIE_BROWSER = os.getenv("YOUTUBE_COOKIE_BROWSER", "").strip()
+
+_youtube_cookie_file: str | None = None
+
+
+def _youtube_cookiefile() -> str | None:
+    """Materialize a Netscape cookie jar for YouTube if cookie data exists."""
+    global _youtube_cookie_file
+    if _youtube_cookie_file and os.path.isfile(_youtube_cookie_file):
+        return _youtube_cookie_file
+
+    raw = YOUTUBE_COOKIE
+    if raw:
+        fd, path = tempfile.mkstemp(prefix="tickless-yt-", suffix=".txt")
+        with os.fdopen(fd, "w") as f:
+            f.write("# Netscape HTTP Cookie File\n")
+            f.write(".youtube.com\tTRUE\t/\tTRUE\t0\tcookie\t" + raw + "\n")
+        _youtube_cookie_file = path
+        return path
+
+    if YOUTUBE_COOKIE_BROWSER:
+        return "__browser__:" + YOUTUBE_COOKIE_BROWSER
+
+    return None
+
+
+def _platform_cookie_opts(url: str) -> dict:
+    """Extra cookie/auth yt-dlp options for specific platforms."""
     if "instagram.com" in url or "instagr.am" in url:
         cookiefile = _ig_cookiefile()
+        if cookiefile:
+            return {"cookiefile": cookiefile}
+    if "youtube.com" in url or "youtu.be" in url or "music.youtube.com" in url:
+        cookiefile = _youtube_cookiefile()
         if cookiefile:
             return {"cookiefile": cookiefile}
     return {}
@@ -77,7 +111,7 @@ def download_media(url: str, dest_dir: str, kind: str = "video") -> tuple[str, s
         "retries": 5,
         "fragment_retries": 5,
     }
-    opts.update(_platform_opts(url))
+    opts.update(_platform_cookie_opts(url))
     if is_audio:
         opts["format"] = "bestaudio/best"
         if shutil.which("ffmpeg"):
@@ -142,7 +176,7 @@ def _pick_best_video(info: dict) -> dict | None:
 def extract(url: str) -> dict:
     """Extract clean media info. Raises ExtractionError with a code on failure."""
     try:
-        with yt_dlp.YoutubeDL({**_YDL_OPTS, **_platform_opts(url)}) as ydl:
+        with yt_dlp.YoutubeDL({**_YDL_OPTS, **_platform_cookie_opts(url)}) as ydl:
             info = ydl.extract_info(url, download=False)
     except DownloadError as e:
         msg = str(e).lower()
