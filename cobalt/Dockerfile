@@ -18,7 +18,7 @@ FROM base AS api
 WORKDIR /app
 
 COPY --from=build --chown=node:node /prod/api /app
-COPY --from=build --chown=node:node /app/.git /app/.git
+RUN if [ -d /app/.git ]; then cp -r /app/.git /app/.git; fi
 
 USER node
 

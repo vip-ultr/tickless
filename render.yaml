@@ -1,11 +1,20 @@
-# Tickless Cobalt instance
-# Deployed as a separate Render Docker service.
-# Render picks this up as a blueprint from the repo root render.yaml.
+# Render blueprint for the Cobalt service.
+#
+# Setup in Render dashboard:
+#   New + -> Blueprint -> Connect repo vip-ultr/tickless
+#   Render will detect render.yaml and create:
+#     tickless-cobalt  (Docker service from ./cobalt)
+#     tickless         (existing Python service from backend/)
+#
+# If Render auto-creates a service with root Directory "/",
+# edit it and set Dockerfile Path to: cobalt/Dockerfile
+# and Build Context to: cobalt
+#
 services:
   - type: docker
     name: tickless-cobalt
-    dockerfilePath: ./cobalt/Dockerfile
-    dockerContext: ./cobalt
+    dockerfilePath: cobalt/Dockerfile
+    dockerContext: cobalt
     plan: free
     branch: main
     envVars:
