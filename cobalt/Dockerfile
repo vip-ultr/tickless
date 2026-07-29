@@ -29,7 +29,8 @@ RUN cd /app && \
     git config user.name "CI" && \
     git add -A && \
     git commit -m "chore: cobalt deploy snapshot" && \
-    git remote remove origin || true
+    git remote remove origin >/dev/null 2>&1 || true && \
+    git remote add origin https://github.com/imputnet/cobalt.git
 
 USER node
 
