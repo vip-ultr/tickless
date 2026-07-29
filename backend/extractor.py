@@ -82,6 +82,42 @@ def _platform_cookie_opts(url: str) -> dict:
     return {}
 
 
+_YOUTUBE_PLAYER_CLIENTS = ("web", "android", "mweb", "tv.html5")
+_YOUTUBE_LAST_PLAYER_CLIENT: str | None = None
+
+
+def _yt_browser_fallback_opts(url: str) -> dict:
+    """Try alternate YouTube player clients if cookies are not configured.
+
+    Some ranges block default anonymous requests; mobile/web clients often
+    still succeed without requiring real account cookies.
+    """
+    global _YOUTUBE_LAST_PLAYER_CLIENT
+    out: dict = {}
+    for client in _YOUTUBE_PLAYER_CLIENTS:
+        if _try_yt_player_client(url, client):
+            out["extractor_args"] = {"youtube": {"player_client": [client]}}
+            _YOUTUBE_LAST_PLAYER_CLIENT = client
+            return out
+    return out
+
+
+def _try_yt_player_client(url: str, client: str) -> bool:
+    opts = {
+        "quiet": True,
+        "no_warnings": True,
+        "skip_download": True,
+        "noplaylist": True,
+        "extractor_args": {"youtube": {"player_client": [client]}},
+    }
+    try:
+        with yt_dlp.YoutubeDL(opts) as ydl:
+            info = ydl.extract_info(url, download=False)
+        return bool(info)
+    except Exception:
+        return False
+
+
 def extract_raw(url: str) -> dict:
     """Full yt-dlp info dict (includes http_headers needed to fetch the CDN URL)."""
     opts = {
@@ -128,12 +164,16 @@ def download_media(url: str, dest_dir: str, kind: str = "video") -> tuple[str, s
         # TikTok's web page intermittently fails extraction ("universal data
         # for rehydration"); a single retry usually succeeds.
         last_err = None
-        for _ in range(3):
+        for _ in range(5):
             try:
                 info = ydl.extract_info(url, download=True)
                 break
             except DownloadError as e:
                 last_err = e
+                # On YouTube bot-wall without effective cookies, try an
+                # alternate player client without relying on account cookies.
+                if "not a bot" in str(e).lower() and "youtube" in str(e).lower() and not _platform_cookie_opts(url):
+                    opts = {**opts, **_yt_browser_fallback_opts(url)}
         else:
             raise last_err if last_err else DownloadError("extraction failed")
         title = (info.get("title") or "").strip()
@@ -180,9 +220,10 @@ def extract(url: str) -> dict:
             info = ydl.extract_info(url, download=False)
     except DownloadError as e:
         msg = str(e).lower()
-        if "empty media response" in msg or "login" in msg or "rate-limit" in msg or "rate limit" in msg:
-            # Instagram anti-bot wall: content exists but IG refuses our server.
-            raise ExtractionError("ig_blocked" if "instagram" in msg else "unavailable")
+        if "empty media response" in msg or "login" in msg or "rate-limit" in msg or "rate limit" in msg or "not a bot" in msg:
+            # Instagram anti-bot wall or YouTube bot wall.
+            code = "ig_blocked" if "instagram" in msg else "extract_failed"
+            raise ExtractionError(code)
         if "private" in msg or "unavailable" in msg or "not available" in msg:
             raise ExtractionError("unavailable")
         raise ExtractionError("extract_failed")
