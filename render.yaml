@@ -1,0 +1,15 @@
+# Tickless Cobalt instance
+# Deployed as a separate Render Docker service.
+# Render picks this up as a blueprint from the repo root render.yaml.
+services:
+  - type: docker
+    name: tickless-cobalt
+    dockerfilePath: ./cobalt/Dockerfile
+    dockerContext: ./cobalt
+    plan: free
+    branch: main
+    envVars:
+      - key: API_URL
+        value: https://tickless-cobalt.onrender.com/
+      - key: PORT
+        value: 9000

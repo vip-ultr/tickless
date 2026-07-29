@@ -144,3 +144,6 @@ def test_live_instagram_extraction():
         pytest.skip("IG_SESSIONID not set")
     data = extract("https://www.instagram.com/reel/DTiy8MKEqux/")
     assert data["video_url"]
+
+
+# cobalt routing tests are in test_cobalt.py and verified by integration scripts.

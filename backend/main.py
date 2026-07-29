@@ -24,6 +24,7 @@ from slowapi.util import get_remote_address
 from starlette.responses import JSONResponse, StreamingResponse
 
 from extractor import ExtractionError, download_media, extract
+from cobalt_client import cobalt_extract
 from validation import normalize_and_validate
 from ads import router as ads_router
 from analytics import router as analytics_router, record_download
@@ -158,10 +159,16 @@ async def api_extract(
         raise HTTPException(status_code=400, detail=ERROR_MESSAGES.get(code, ERROR_MESSAGES["unsupported"]))
 
     try:
-        data = extract(url)
+        if platform == "instagram":
+            data = cobalt_extract(url)
+        else:
+            data = extract(url)
     except ExtractionError as e:
-        status = 400 if e.code in ("slideshow", "unavailable", "no_media", "ig_blocked") else 502
-        raise HTTPException(status_code=status, detail=ERROR_MESSAGES.get(e.code, ERROR_MESSAGES["extract_failed"]))
+        detail = ERROR_MESSAGES.get(e.code, ERROR_MESSAGES["extract_failed"])
+        if platform == "instagram" and e.code in ("unsupported", "service-unsupported"):
+            detail = ERROR_MESSAGES["unsupported"]
+        status = 400 if e.code in ("slideshow", "unavailable", "no_media", "ig_blocked", "unsupported") else 502
+        raise HTTPException(status_code=status, detail=detail)
 
     data["platform"] = platform
     return data
