@@ -31,7 +31,7 @@ export default function Home() {
         {/* Hero */}
         <section className="pt-10 md:pt-16">
           <p className="mb-4 text-sm font-medium tx-brand">Free TikTok, Instagram &amp; YouTube downloader</p>
-          <h1 className="text-4xl font-extrabold leading-tight tracking-tight md:text-6xl">
+          <h1 className="text-3xl font-extrabold leading-tight tracking-tight md:text-5xl">
             Save any TikTok, Instagram Reel, or YouTube video without the <span className="tx-brand">watermark</span>.
           </h1>
           <p className="mt-5 max-w-xl text-base tx-muted md:text-lg">
