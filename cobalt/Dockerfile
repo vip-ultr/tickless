@@ -19,7 +19,7 @@ WORKDIR /app
 
 COPY --from=build --chown=node:node /prod/api /app
 RUN if [ -d /app/.git ]; then cp -r /app/.git /app/.git; fi
-RUN mkdir -p /app/.git/objects /app/.git/refs && \
+RUN mkdir -p /app/.git/objects /app/.git/refs/heads && \
     echo "ref: refs/heads/main" > /app/.git/HEAD && \
     printf "[core]\n\trepositoryformatversion = 0\n\tfilemode = true\n\tbare = false\n\tlogallrefupdates = true\n" > /app/.git/config && \
     touch /app/.git/objects/pack && \
