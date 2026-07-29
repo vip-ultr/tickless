@@ -175,20 +175,32 @@
   max-width: 18rem;
   padding: 0;
 }
-#cc-main .cm__title { font-size: 0.82rem; margin-bottom: 0.4rem; }
-#cc-main .cm__desc { font-size: 0.72rem; line-height: 1.4; }
-#cc-main .cm__btn { font-size: 0.72rem; padding: 0.4rem 0.7rem; }
-#cc-main .cm__btns { gap: 0.4rem; }
+#cc-main .cm__title { font-size: 0.82rem; margin-bottom: 0.35rem; padding: 0.7rem 0.9rem 0; }
+#cc-main .cm__desc { font-size: 0.72rem; line-height: 1.4; padding: 0 0.9rem 0.55rem; }
+#cc-main .cm__btns { padding: 0.55rem 0.9rem 0.7rem; gap: 0.4rem; }
+#cc-main .cm__links { padding: 0.45rem 0.9rem; }
+#cc-main .cm__btn { font-size: 0.72rem; padding: 0.38rem 0.65rem; min-height: 34px; }
+#cc-main .cm__btn+.cm__btn,
+#cc-main .cm__btn-group+.cm__btn-group { margin-top: 0.35rem; }
 @media (max-width: 640px) {
   #cc-main .cm {
-    max-width: calc(100vw - 1.25rem);
-    margin: 0.6rem;
+    max-width: calc(100vw - 1.15rem);
+    margin: 0.5rem;
   }
+  #cc-main .cm__title { padding-left: 0.85rem; padding-right: 0.85rem; }
+  #cc-main .cm__desc { padding-left: 0.85rem; padding-right: 0.85rem; }
+  #cc-main .cm__btns { padding-left: 0.85rem; padding-right: 0.85rem; }
+  #cc-main .cm__links { padding-left: 0.85rem; padding-right: 0.85rem; }
 }
 /* Compact preferences modal */
 #cc-main .pm { max-width: 22rem; }
 #cc-main .pm__title { font-size: 0.82rem; }
 #cc-main .pm__section-title { font-size: 0.75rem; }
 #cc-main .pm__section-desc { font-size: 0.72rem; line-height: 1.4; }
-#cc-main .pm__btn { font-size: 0.72rem; padding: 0.4rem 0.7rem; }
-#cc-main .pm__section { padding: 0.75rem; }
+#cc-main .pm__btn { font-size: 0.72rem; padding: 0.38rem 0.65rem; min-height: 34px; }
+#cc-main .pm__section { padding: 0.6rem; }
+#cc-main .pm__header,
+#cc-main .pm__body,
+#cc-main .pm__footer { padding: 0.7rem 0.9rem; }
+#cc-main .pm__btn+.pm__btn,
+#cc-main .pm__btn-group+.pm__btn-group { margin-left: 0.3rem; }
