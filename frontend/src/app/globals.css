@@ -189,8 +189,29 @@
   }
   #cc-main .cm__title { padding-left: 0.85rem; padding-right: 0.85rem; }
   #cc-main .cm__desc { padding-left: 0.85rem; padding-right: 0.85rem; }
-  #cc-main .cm__btns { padding-left: 0.85rem; padding-right: 0.85rem; }
-  #cc-main .cm__links { padding-left: 0.85rem; padding-right: 0.85rem; }
+  #cc-main .cm__btns {
+    flex-direction: row !important;
+    flex-wrap: wrap !important;
+    justify-content: space-between !important;
+    gap: 0.35rem !important;
+    padding: 0.5rem 0.7rem 0.55rem !important;
+  }
+  #cc-main .cm__btn-group {
+    flex-direction: row !important;
+    flex-wrap: wrap !important;
+    gap: 0.35rem !important;
+    width: 100% !important;
+  }
+  #cc-main .cm__btn,
+  #cc-main .cm__btn--secondary {
+    flex: 1 1 auto !important;
+    min-width: 0 !important;
+    margin-top: 0 !important;
+    padding: 0.4rem 0.55rem !important;
+    font-size: 0.72rem !important;
+    min-height: 34px !important;
+  }
+  #cc-main .cm__links { padding-left: 0.7rem; padding-right: 0.7rem; }
 }
 /* Compact preferences modal */
 #cc-main .pm { max-width: 22rem; }
