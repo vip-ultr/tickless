@@ -158,9 +158,9 @@ def test_ig_blocked_maps_to_clean_error():
 
 def test_youtube_bot_wall_fallback_present_in_code():
     """YouTube bot-wall fallback should exist in extractor.py without real network."""
-    src = open("../extractor.py", encoding="utf-8").read()
+    src = open(_os.path.join(_os.path.dirname(__file__), "extractor.py"), encoding="utf-8").read()
     assert "_yt_browser_fallback_opts" in src
-    assert "_is_youtube_url(url) and \"not a bot\" in msg" in src
+    assert '_is_youtube_url(url) and "not a bot" in msg' in src
     assert "YOUTUBE_COOKIE" in src
 
 
