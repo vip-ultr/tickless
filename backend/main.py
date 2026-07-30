@@ -23,6 +23,7 @@ from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
 from starlette.responses import JSONResponse, StreamingResponse
 
+import httpx
 from extractor import ExtractionError, download_media, extract
 from cobalt_client import cobalt_extract
 from validation import normalize_and_validate
@@ -142,6 +143,42 @@ def build_download_filename(
     return utf8_name, ascii_name
 
 
+async def _proxy_remote_media(url: str, tmpdir: str) -> str:
+    """Stream an Instagram CDN URL through the backend to avoid client-side auth issues."""
+    target = os.path.join(tmpdir, "tickless-download")
+    async with httpx.AsyncClient(
+        follow_redirects=True,
+        timeout=120,
+        headers={"User-Agent": "curl/8.5"},
+    ) as client:
+        async with client.stream("GET", url) as resp:
+            if resp.status_code >= 400:
+                raise HTTPException(
+                    status_code=502,
+                    detail="We could not fetch this Instagram file right now.",
+                )
+            content_type = resp.headers.get("content-type", "application/octet-stream")
+            with open(target, "wb") as f:
+                async for chunk in resp.aiter_bytes():
+                    f.write(chunk)
+    suffix = ".bin"
+    try:
+        ct = (content_type or "").lower()
+        if "mp4" in ct:
+            suffix = ".mp4"
+        elif "jpeg" in ct or "jpg" in ct:
+            suffix = ".jpg"
+        elif "png" in ct:
+            suffix = ".png"
+        elif "webp" in ct:
+            suffix = ".webp"
+    except Exception:
+        suffix = ".bin"
+    final = target + suffix
+    os.replace(target, final)
+    return final
+
+
 def _require_key(x_tickless_key: str | None):
     # If no key configured (local dev), allow. In prod the key is always set.
     if API_KEY and x_tickless_key != API_KEY:
@@ -227,7 +264,21 @@ async def api_download(
 
     tmpdir = tempfile.mkdtemp(prefix="tickless-")
     try:
-        path, title, uploader = await run_in_threadpool(download_media, clean, tmpdir, kind)
+        if platform == "instagram":
+            ig_data = await run_in_threadpool(cobalt_extract, clean)
+            primary_url = ig_data.get("video_url")
+            if not primary_url and ig_data.get("photo_urls"):
+                primary_url = ig_data["photo_urls"][0]
+            if not primary_url:
+                raise HTTPException(status_code=502, detail=ERROR_MESSAGES["no_media"])
+            path = await _proxy_remote_media(primary_url, tmpdir)
+            title = ig_data.get("title") or "instagram post"
+            uploader = ig_data.get("author") or ""
+        else:
+            path, title, uploader = await run_in_threadpool(download_media, clean, tmpdir, kind)
+    except HTTPException:
+        shutil.rmtree(tmpdir, ignore_errors=True)
+        raise
     except Exception:
         logging.exception("download_media failed for %s", clean)
         shutil.rmtree(tmpdir, ignore_errors=True)
