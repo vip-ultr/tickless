@@ -163,8 +163,23 @@ function ResultCard({ data, sourceUrl, onReset }: { data: Result; sourceUrl: str
   const itemType = hasGallery ? (galleryTypes[selectedGalleryIndex] || "video") : "video";
 
   const key = process.env.NEXT_PUBLIC_API_KEY || "";
-  const dl = (kind: "video" | "audio") =>
-    `${API_URL}/api/download?url=${encodeURIComponent(sourceUrl)}&kind=${kind}${key ? `&key=${encodeURIComponent(key)}` : ""}${hasGallery ? `&gallery_index=${selectedGalleryIndex}` : ""}`;
+  const dl = (kind: "video" | "audio", idx?: number) => {
+    const galleryIndex = typeof idx === "number" ? idx : selectedGalleryIndex;
+    return `${API_URL}/api/download?url=${encodeURIComponent(sourceUrl)}&kind=${kind}${key ? `&key=${encodeURIComponent(key)}` : ""}${hasGallery ? `&gallery_index=${galleryIndex}` : ""}`;
+  };
+
+  const downloadAll = () => {
+    gallery.forEach((_, idx) => {
+      setTimeout(() => {
+        const a = document.createElement("a");
+        a.href = dl("video", idx);
+        a.download = "";
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+      }, idx * 400);
+    });
+  };
 
   return (
     <motion.div
@@ -172,13 +187,13 @@ function ResultCard({ data, sourceUrl, onReset }: { data: Result; sourceUrl: str
       animate={{ opacity: 1, y: 0 }}
       className="glass rounded-2xl p-5"
     >
-      <div className="flex gap-4">
+      <div className="flex flex-col gap-4 md:flex-row md:gap-4">
         {data.thumbnail && (
           // eslint-disable-next-line @next/next/no-img-element
           <img
             src={data.thumbnail}
             alt={data.title}
-            className="h-28 w-20 shrink-0 rounded-xl object-cover"
+            className="h-36 w-24 shrink-0 rounded-xl object-cover"
           />
         )}
         <div className="min-w-0 flex-1">
@@ -188,29 +203,39 @@ function ResultCard({ data, sourceUrl, onReset }: { data: Result; sourceUrl: str
             {data.duration ? ` · ${data.duration}s` : ""}
             {data.height ? ` · ${data.height}p` : ""}
           </p>
+
+          {hasGallery && (
+            <div className="mt-3 flex flex-wrap gap-2">
+              {gallery.map((item, idx) => (
+                <button
+                  key={item}
+                  type="button"
+                  onClick={() => setSelectedGalleryIndex(idx)}
+                  className={`shrink-0 rounded-lg border-2 px-3 py-1 text-xs font-medium transition-colors ${
+                    idx === selectedGalleryIndex
+                      ? "border-[var(--brand-accent)] bg-[var(--brand-accent)]/10 tx"
+                      : "border-transparent bg-[var(--glass-border)] tx-muted"
+                  }`}
+                >
+                  {(galleryTypes[idx] || "video") === "photo" ? `Photo ${idx + 1}` : `Video ${idx + 1}`}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 
-      {hasGallery && (
-        <div className="mt-4 flex gap-2 overflow-x-auto pb-1">
-          {gallery.map((item, idx) => (
-            <button
-              key={item}
-              type="button"
-              onClick={() => setSelectedGalleryIndex(idx)}
-              className={`shrink-0 rounded-lg border-2 px-3 py-1 text-xs font-medium transition-colors ${
-                idx === selectedGalleryIndex
-                  ? "border-[var(--brand-accent)] bg-[var(--brand-accent)]/10 tx"
-                  : "border-transparent bg-[var(--glass-border)] tx-muted"
-              }`}
-            >
-              {(galleryTypes[idx] || "video") === "photo" ? `Photo ${idx + 1}` : `Video ${idx + 1}`}
-            </button>
-          ))}
-        </div>
-      )}
-
       <div className="mt-5 flex flex-wrap gap-3">
+        {hasGallery && (
+          <button
+            type="button"
+            onClick={downloadAll}
+            className="btn-brand flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold"
+          >
+            <Download size={16} />
+            Download all
+          </button>
+        )}
         <a
           href={dl("video")}
           className="btn-brand flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold"

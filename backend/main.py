@@ -292,12 +292,24 @@ async def api_download(
         raise HTTPException(status_code=502, detail=ERROR_MESSAGES["no_media"])
 
     real_ext = path.rsplit(".", 1)[-1].lower() if "." in os.path.basename(path) else "bin"
-    if kind == "audio":
+    # Use the actual downloaded file extension so photos do not get
+    # mislabeled as video/mp4.
+    if real_ext in ("jpg", "jpeg"):
+        media_type = "image/jpeg"
+    elif real_ext == "png":
+        media_type = "image/png"
+    elif real_ext == "webp":
+        media_type = "image/webp"
+    elif kind == "audio":
         media_type = "audio/mpeg" if real_ext == "mp3" else "audio/mp4"
     else:
         media_type = "video/mp4"
 
-    utf8_name, ascii_name = build_download_filename(title, uploader, real_ext)
+    # Gallery-aware unique filename
+    stem = title or "tickless-download"
+    if gallery_index is not None:
+        stem = f"{stem}_{gallery_index + 1}"
+    utf8_name, ascii_name = build_download_filename(stem, uploader, real_ext)
 
     # Count the completed download per platform (non-blocking, never fails).
     record_download(platform, kind)
