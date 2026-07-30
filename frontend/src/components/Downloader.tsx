@@ -15,6 +15,8 @@ type Result = {
   audio_url: string | null;
   height: number | null;
   platform?: "tiktok" | "instagram" | "youtube";
+  gallery?: string[];
+  gallery_types?: string[];
 };
 
 type State =
@@ -152,8 +154,15 @@ function ResultCard({ data, sourceUrl, onReset }: { data: Result; sourceUrl: str
   // Stream through the backend: TikTok CDN URLs are IP-locked to the
   // server that extracted them, so direct links get Access Denied.
   const key = process.env.NEXT_PUBLIC_API_KEY || "";
-  const dl = (kind: "video" | "audio") =>
-    `${API_URL}/api/download?url=${encodeURIComponent(sourceUrl)}&kind=${kind}${key ? `&key=${encodeURIComponent(key)}` : ""}`;
+  const dl = (kind: "video" | "audio", itemIndex?: number) => {
+    const base = kind === "audio"
+      ? `${API_URL}/api/download?url=${encodeURIComponent(sourceUrl)}&kind=audio`
+      : `${API_URL}/api/download?url=${encodeURIComponent(sourceUrl)}&kind=video`;
+    if (kind === "video" && typeof itemIndex === "number" && (data.gallery?.length ?? 0) > 1) {
+      return `${base}&gallery_index=${itemIndex}`;
+    }
+    return base;
+  };
 
   return (
     <motion.div
@@ -161,45 +170,66 @@ function ResultCard({ data, sourceUrl, onReset }: { data: Result; sourceUrl: str
       animate={{ opacity: 1, y: 0 }}
       className="glass rounded-2xl p-5"
     >
-      <div className="flex gap-4">
-        {data.thumbnail && (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={data.thumbnail}
-            alt={data.title}
-            className="h-28 w-20 shrink-0 rounded-xl object-cover"
-          />
-        )}
-        <div className="min-w-0 flex-1">
-          <p className="line-clamp-2 text-sm font-medium">{data.title}</p>
-          <p className="mt-1 text-xs tx-muted">
-            {data.platform === "instagram" ? "Instagram" : data.platform === "youtube" ? "YouTube" : "TikTok"} · @{data.author}
-            {data.duration ? ` · ${data.duration}s` : ""}
-            {data.height ? ` · ${data.height}p` : ""}
-          </p>
-        </div>
-      </div>
+      {(() => {
+        const gallery = data.gallery ?? [];
+        const hasGallery = gallery.length > 1;
+        return (
+          <>
+            <div className="flex gap-4">
+              {data.thumbnail && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={data.thumbnail}
+                  alt={data.title}
+                  className="h-28 w-20 shrink-0 rounded-xl object-cover"
+                />
+              )}
+              <div className="min-w-0 flex-1">
+                <p className="line-clamp-2 text-sm font-medium">{data.title}</p>
+                <p className="mt-1 text-xs tx-muted">
+                  {data.platform === "instagram" ? "Instagram" : data.platform === "youtube" ? "YouTube" : "TikTok"} · @{data.author}
+                  {data.duration ? ` · ${data.duration}s` : ""}
+                  {data.height ? ` · ${data.height}p` : ""}
+                </p>
+              </div>
+            </div>
 
-      <div className="mt-5 flex flex-wrap gap-3">
-        <a
-          href={dl("video")}
-          className="btn-brand flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold"
-        >
-          <Video size={16} /> Download
-        </a>
-        <a
-          href={dl("audio")}
-          className="glass flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold"
-        >
-          <Music size={16} /> Audio (MP3)
-        </a>
-        <button
-          onClick={onReset}
-          className="rounded-xl px-4 py-2.5 text-sm tx-muted hover:tx"
-        >
-          Download another
-        </button>
-      </div>
+            <div className="mt-5 flex flex-wrap gap-3">
+              {hasGallery
+                ? gallery.map((item, idx) => (
+                    <a
+                      key={item}
+                      href={dl("video", idx)}
+                      className="btn-brand flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold"
+                    >
+                      <Video size={16} />
+                      Download {idx + 1}
+                    </a>
+                  ))
+                : (
+                    <a
+                      href={dl("video")}
+                      className="btn-brand flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold"
+                    >
+                      <Video size={16} /> Download
+                    </a>
+                  )}
+              <a
+                href={dl("audio")}
+                className="glass flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold"
+              >
+                <Music size={16} /> Audio (MP3)
+              </a>
+              <button
+                onClick={onReset}
+                className="rounded-xl px-4 py-2.5 text-sm tx-muted hover:tx"
+              >
+                Download another
+              </button>
+            </div>
+          </>
+        );
+      })()}
     </motion.div>
   );
 }

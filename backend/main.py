@@ -266,7 +266,9 @@ async def api_download(
     try:
         if platform == "instagram":
             ig_data = await run_in_threadpool(cobalt_extract, clean)
-            primary_url = ig_data.get("video_url")
+            gallery = ig_data.get("gallery") or []
+            gallery_index = max(0, min(gallery_index or 0, len(gallery) - 1))
+            primary_url = gallery[gallery_index] if gallery else ig_data.get("video_url")
             if not primary_url and ig_data.get("photo_urls"):
                 primary_url = ig_data["photo_urls"][0]
             if not primary_url:
