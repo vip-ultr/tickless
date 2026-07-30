@@ -44,6 +44,8 @@ def _ig_cookiefile() -> str | None:
 # env var or yt-dlp's browser profile extraction.
 YOUTUBE_COOKIE = os.getenv("YOUTUBE_COOKIE", "").strip()
 YOUTUBE_COOKIE_BROWSER = os.getenv("YOUTUBE_COOKIE_BROWSER", "").strip()
+YOUTUBE_SID = os.getenv("YOUTUBE_SID", "").strip()
+YOUTUBE_SAPISID = os.getenv("YOUTUBE_SAPISID", "").strip()
 
 _youtube_cookie_file: str | None = None
 
@@ -54,12 +56,25 @@ def _youtube_cookiefile() -> str | None:
     if _youtube_cookie_file and os.path.isfile(_youtube_cookie_file):
         return _youtube_cookie_file
 
-    raw = YOUTUBE_COOKIE
+    raw = (YOUTUBE_COOKIE or "").strip()
     if raw:
         fd, path = tempfile.mkstemp(prefix="tickless-yt-", suffix=".txt")
         with os.fdopen(fd, "w") as f:
             f.write("# Netscape HTTP Cookie File\n")
             f.write(".youtube.com\tTRUE\t/\tTRUE\t0\tcookie\t" + raw + "\n")
+        _youtube_cookie_file = path
+        return path
+
+    if YOUTUBE_SID or YOUTUBE_SAPISID:
+        fd, path = tempfile.mkstemp(prefix="tickless-yt-", suffix=".txt")
+        with os.fdopen(fd, "w") as f:
+            f.write("# Netscape HTTP Cookie File\n")
+            if YOUTUBE_SID:
+                f.write(".youtube.com\tTRUE\t/\tTRUE\t0\tSID\t" + YOUTUBE_SID + "\n")
+                f.write(".google.com\tTRUE\t/\tTRUE\t0\tSID\t" + YOUTUBE_SID + "\n")
+            if YOUTUBE_SAPISID:
+                f.write(".youtube.com\tTRUE\t/\tTRUE\t0\tSAPISID\t" + YOUTUBE_SAPISID + "\n")
+                f.write(".google.com\tTRUE\t/\tTRUE\t0\tSAPISID\t" + YOUTUBE_SAPISID + "\n")
         _youtube_cookie_file = path
         return path
 
@@ -130,6 +145,11 @@ def extract_raw(url: str) -> dict:
         return dict(ydl.extract_info(url, download=False))
 
 
+def _is_youtube_url(url: str) -> bool:
+    u = url.lower()
+    return any(h in u for h in ("youtube.com", "youtu.be", "m.youtube.com", "music.youtube.com"))
+
+
 def download_media(url: str, dest_dir: str, kind: str = "video") -> tuple[str, str, str]:
     """Download the clean media server-side via yt-dlp (it handles TikTok's
     CDN auth/headers correctly, unlike a plain HTTP client).
@@ -172,7 +192,7 @@ def download_media(url: str, dest_dir: str, kind: str = "video") -> tuple[str, s
                 last_err = e
                 # On YouTube bot-wall without effective cookies, try an
                 # alternate player client without relying on account cookies.
-                if "not a bot" in str(e).lower() and "youtube" in str(e).lower() and not _platform_cookie_opts(url):
+                if "not a bot" in str(e).lower() and _is_youtube_url(url) and not _platform_cookie_opts(url):
                     opts = {**opts, **_yt_browser_fallback_opts(url)}
         else:
             raise last_err if last_err else DownloadError("extraction failed")
@@ -215,15 +235,27 @@ def _pick_best_video(info: dict) -> dict | None:
 
 def extract(url: str) -> dict:
     """Extract clean media info. Raises ExtractionError with a code on failure."""
+    opts_base = {**_YDL_OPTS, **_platform_cookie_opts(url)}
     try:
-        with yt_dlp.YoutubeDL({**_YDL_OPTS, **_platform_cookie_opts(url)}) as ydl:
+        with yt_dlp.YoutubeDL(opts_base) as ydl:
             info = ydl.extract_info(url, download=False)
     except DownloadError as e:
         msg = str(e).lower()
-        if "empty media response" in msg or "login" in msg or "rate-limit" in msg or "rate limit" in msg or "not a bot" in msg:
-            # Instagram anti-bot wall or YouTube bot wall.
+        if ("empty media response" in msg or "login" in msg or "rate-limit" in msg or "rate limit" in msg or "not a bot" in msg):
             code = "ig_blocked" if "instagram" in msg else "extract_failed"
-            raise ExtractionError(code)
+            # Without cookies, retry YouTube once with an alternate player client.
+            if _is_youtube_url(url) and "not a bot" in msg and not _platform_cookie_opts(url):
+                fallback = _yt_browser_fallback_opts(url)
+                if fallback:
+                    try:
+                        with yt_dlp.YoutubeDL({**opts_base, **fallback}) as ydl:
+                            info = ydl.extract_info(url, download=False)
+                    except Exception:
+                        raise ExtractionError(code)
+                else:
+                    raise ExtractionError(code)
+            else:
+                raise ExtractionError(code)
         if "private" in msg or "unavailable" in msg or "not available" in msg:
             raise ExtractionError("unavailable")
         raise ExtractionError("extract_failed")
