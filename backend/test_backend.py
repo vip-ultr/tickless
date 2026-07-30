@@ -156,6 +156,14 @@ def test_ig_blocked_maps_to_clean_error():
     assert exc.value.code in ("ig_blocked", "unavailable", "extract_failed")
 
 
+def test_youtube_bot_wall_fallback_present_in_code():
+    """YouTube bot-wall fallback should exist in extractor.py without real network."""
+    src = open("../extractor.py", encoding="utf-8").read()
+    assert "_yt_browser_fallback_opts" in src
+    assert "_is_youtube_url(url) and \"not a bot\" in msg" in src
+    assert "YOUTUBE_COOKIE" in src
+
+
 @pytest.mark.live
 def test_live_instagram_extraction():
     """Only runs when an IG session cookie is configured."""
