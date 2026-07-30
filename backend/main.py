@@ -82,6 +82,23 @@ class ExtractRequest(BaseModel):
     url: str
 
 
+_YOUTUBE_DEBUG_ENABLED = os.getenv("TICKLESS_YOUTUBE_DEBUG", "").strip().lower() in {"1", "true", "yes"}
+
+
+@app.get("/api/debug/yt/cookie-state")
+async def debug_yt_cookie_state():
+    if not _YOUTUBE_DEBUG_ENABLED:
+        raise HTTPException(status_code=404, detail="Not found")
+    import extractor as _ex
+    state = _ex._youtube_cookiefile()
+    redacted = state == "__browser__"
+    return {
+        "enabled": _YOUTUBE_DEBUG_ENABLED,
+        "cookie_path": state,
+        "redacted": redacted,
+    }
+
+
 # Characters not allowed in filenames on Windows/macOS/Android/iOS.
 _FILENAME_FORBIDDEN = re.compile(r'[<>:"/\\|?*\x00-\x1f]')
 # Hashtag tokens (with the tag text) - stripped, they are noise in filenames.
