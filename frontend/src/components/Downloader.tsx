@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useRef, useState, useEffect } from "react";
 import { Download, ClipboardPaste, Loader2, Music, Video } from "lucide-react";
 import { motion } from "framer-motion";
 import { API_URL } from "@/lib/config";
@@ -151,18 +151,20 @@ function Skeleton({ slow }: { slow: boolean }) {
 }
 
 function ResultCard({ data, sourceUrl, onReset }: { data: Result; sourceUrl: string; onReset: () => void }) {
-  // Stream through the backend: TikTok CDN URLs are IP-locked to the
-  // server that extracted them, so direct links get Access Denied.
+  const [selectedGalleryIndex, setSelectedGalleryIndex] = useState(0);
+  const gallery = data.gallery ?? [];
+  const hasGallery = gallery.length > 1;
+  const galleryTypes = data.gallery_types ?? [];
+
+  useEffect(() => {
+    setSelectedGalleryIndex(0);
+  }, [sourceUrl]);
+
+  const itemType = hasGallery ? (galleryTypes[selectedGalleryIndex] || "video") : "video";
+
   const key = process.env.NEXT_PUBLIC_API_KEY || "";
-  const dl = (kind: "video" | "audio", itemIndex?: number) => {
-    const base = kind === "audio"
-      ? `${API_URL}/api/download?url=${encodeURIComponent(sourceUrl)}&kind=audio`
-      : `${API_URL}/api/download?url=${encodeURIComponent(sourceUrl)}&kind=video`;
-    if (kind === "video" && typeof itemIndex === "number" && (data.gallery?.length ?? 0) > 1) {
-      return `${base}&gallery_index=${itemIndex}`;
-    }
-    return base;
-  };
+  const dl = (kind: "video" | "audio") =>
+    `${API_URL}/api/download?url=${encodeURIComponent(sourceUrl)}&kind=${kind}${key ? `&key=${encodeURIComponent(key)}` : ""}${hasGallery ? `&gallery_index=${selectedGalleryIndex}` : ""}`;
 
   return (
     <motion.div
@@ -170,66 +172,66 @@ function ResultCard({ data, sourceUrl, onReset }: { data: Result; sourceUrl: str
       animate={{ opacity: 1, y: 0 }}
       className="glass rounded-2xl p-5"
     >
-      {(() => {
-        const gallery = data.gallery ?? [];
-        const hasGallery = gallery.length > 1;
-        return (
-          <>
-            <div className="flex gap-4">
-              {data.thumbnail && (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={data.thumbnail}
-                  alt={data.title}
-                  className="h-28 w-20 shrink-0 rounded-xl object-cover"
-                />
-              )}
-              <div className="min-w-0 flex-1">
-                <p className="line-clamp-2 text-sm font-medium">{data.title}</p>
-                <p className="mt-1 text-xs tx-muted">
-                  {data.platform === "instagram" ? "Instagram" : data.platform === "youtube" ? "YouTube" : "TikTok"} · @{data.author}
-                  {data.duration ? ` · ${data.duration}s` : ""}
-                  {data.height ? ` · ${data.height}p` : ""}
-                </p>
-              </div>
-            </div>
+      <div className="flex gap-4">
+        {data.thumbnail && (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={data.thumbnail}
+            alt={data.title}
+            className="h-28 w-20 shrink-0 rounded-xl object-cover"
+          />
+        )}
+        <div className="min-w-0 flex-1">
+          <p className="line-clamp-2 text-sm font-medium">{data.title}</p>
+          <p className="mt-1 text-xs tx-muted">
+            {data.platform === "instagram" ? "Instagram" : data.platform === "youtube" ? "YouTube" : "TikTok"} · @{data.author}
+            {data.duration ? ` · ${data.duration}s` : ""}
+            {data.height ? ` · ${data.height}p` : ""}
+          </p>
+        </div>
+      </div>
 
-            <div className="mt-5 flex flex-wrap gap-3">
-              {hasGallery
-                ? gallery.map((item, idx) => (
-                    <a
-                      key={item}
-                      href={dl("video", idx)}
-                      className="btn-brand flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold"
-                    >
-                      <Video size={16} />
-                      Download {idx + 1}
-                    </a>
-                  ))
-                : (
-                    <a
-                      href={dl("video")}
-                      className="btn-brand flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold"
-                    >
-                      <Video size={16} /> Download
-                    </a>
-                  )}
-              <a
-                href={dl("audio")}
-                className="glass flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold"
-              >
-                <Music size={16} /> Audio (MP3)
-              </a>
-              <button
-                onClick={onReset}
-                className="rounded-xl px-4 py-2.5 text-sm tx-muted hover:tx"
-              >
-                Download another
-              </button>
-            </div>
-          </>
-        );
-      })()}
+      {hasGallery && (
+        <div className="mt-4 flex gap-2 overflow-x-auto pb-1">
+          {gallery.map((item, idx) => (
+            <button
+              key={item}
+              type="button"
+              onClick={() => setSelectedGalleryIndex(idx)}
+              className={`shrink-0 rounded-lg border-2 px-3 py-1 text-xs font-medium transition-colors ${
+                idx === selectedGalleryIndex
+                  ? "border-[var(--brand-accent)] bg-[var(--brand-accent)]/10 tx"
+                  : "border-transparent bg-[var(--glass-border)] tx-muted"
+              }`}
+            >
+              {(galleryTypes[idx] || "video") === "photo" ? `Photo ${idx + 1}` : `Video ${idx + 1}`}
+            </button>
+          ))}
+        </div>
+      )}
+
+      <div className="mt-5 flex flex-wrap gap-3">
+        <a
+          href={dl("video")}
+          className="btn-brand flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold"
+        >
+          <Video size={16} /> Download
+        </a>
+        {itemType === "video" && (
+          <a
+            href={dl("audio")}
+            className="glass flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold"
+          >
+            <Music size={16} /> Audio (MP3)
+          </a>
+        )}
+        <button
+          onClick={onReset}
+          className="rounded-xl px-4 py-2.5 text-sm tx-muted hover:tx"
+        >
+          Download another
+        </button>
+      </div>
     </motion.div>
   );
 }

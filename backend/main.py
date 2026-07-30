@@ -243,6 +243,7 @@ async def api_download(
     kind: str = "video",
     x_tickless_key: str | None = Header(default=None),
     key: str | None = None,
+    gallery_index: int | None = None,
 ):
     """Download the clean video/audio server-side and stream it to the browser.
 
@@ -267,8 +268,8 @@ async def api_download(
         if platform == "instagram":
             ig_data = await run_in_threadpool(cobalt_extract, clean)
             gallery = ig_data.get("gallery") or []
-            gallery_index = max(0, min(gallery_index or 0, len(gallery) - 1))
-            primary_url = gallery[gallery_index] if gallery else ig_data.get("video_url")
+            safe_index = max(0, min(int(gallery_index or 0), len(gallery) - 1)) if gallery else 0
+            primary_url = gallery[safe_index] if gallery else ig_data.get("video_url")
             if not primary_url and ig_data.get("photo_urls"):
                 primary_url = ig_data["photo_urls"][0]
             if not primary_url:
