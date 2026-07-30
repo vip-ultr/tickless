@@ -168,19 +168,6 @@ function ResultCard({ data, sourceUrl, onReset }: { data: Result; sourceUrl: str
     return `${API_URL}/api/download?url=${encodeURIComponent(sourceUrl)}&kind=${kind}${key ? `&key=${encodeURIComponent(key)}` : ""}${hasGallery ? `&gallery_index=${galleryIndex}` : ""}`;
   };
 
-  const downloadAll = () => {
-    gallery.forEach((_, idx) => {
-      setTimeout(() => {
-        const a = document.createElement("a");
-        a.href = dl("video", idx);
-        a.download = "";
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-      }, idx * 400);
-    });
-  };
-
   return (
     <motion.div
       initial={{ opacity: 0, y: 12 }}
@@ -226,16 +213,20 @@ function ResultCard({ data, sourceUrl, onReset }: { data: Result; sourceUrl: str
       </div>
 
       <div className="mt-5 flex flex-wrap gap-3">
-        {hasGallery && (
-          <button
-            type="button"
-            onClick={downloadAll}
-            className="btn-brand flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold"
-          >
-            <Download size={16} />
-            Download all
-          </button>
-        )}
+        {hasGallery &&
+          gallery.map((item, idx) => {
+            const itemType = (galleryTypes[idx] || "video");
+            return (
+              <a
+                key={item}
+                href={dl("video", idx)}
+                className="btn-brand flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold"
+              >
+                <Video size={16} />
+                Download {idx + 1}
+              </a>
+            );
+          })}
         <a
           href={dl("video")}
           className="btn-brand flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold"
