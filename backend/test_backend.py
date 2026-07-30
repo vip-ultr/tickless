@@ -164,6 +164,102 @@ def test_youtube_bot_wall_fallback_present_in_code():
     assert "YOUTUBE_COOKIE" in src
 
 
+def test_cobalt_picker_multi_item_photo_and_video(monkeypatch, tmp_path):
+    """Instagram carousel and photo-only posts should surface all URLs."""
+
+    def fake_urlopen(req, timeout=None):
+        import json
+        from urllib.request import Request
+        body = json.loads(req.data.decode()) if req.data else {}
+        url = body.get("url", "")
+        if "DbEgdzMDK4g" in url:
+            payload = {
+                "status": "picker",
+                "picker": [
+                    {
+                        "type": "video",
+                        "url": "https://example.com/v1.mp4",
+                        "thumb": "https://example.com/t1.jpg",
+                        "width": 1080,
+                        "height": 1920,
+                    },
+                    {
+                        "type": "video",
+                        "url": "https://example.com/v2.mp4",
+                        "thumb": "https://example.com/t2.jpg",
+                    },
+                    {
+                        "type": "photo",
+                        "url": "https://example.com/p1.jpg",
+                        "thumb": "https://example.com/tp1.jpg",
+                    },
+                    {
+                        "type": "photo",
+                        "url": "https://example.com/p2.jpg",
+                    },
+                ],
+            }
+        elif "DbRkanLiFzI" in url:
+            payload = {
+                "status": "picker",
+                "picker": [
+                    {
+                        "type": "photo",
+                        "url": "https://example.com/pa.jpg",
+                        "thumb": "https://example.com/ta.jpg",
+                    }
+                ],
+            }
+        else:
+            payload = {
+                "status": "error",
+                "error": {"code": "invalid-url"},
+            }
+
+        class FakeResp:
+            def read(self):
+                return json.dumps(payload).encode()
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, exc_type, exc, tb):
+                return False
+
+        return FakeResp()
+
+    import cobalt_client as _cc
+    monkeypatch.setenv("COBALT_URL", "https://tickless-cobalt.onrender.com")
+    monkeypatch.setattr("urllib.request.urlopen", fake_urlopen)
+
+    import importlib
+    importlib.reload(_cc)
+
+    multi = _cc.cobalt_extract(
+        "https://www.instagram.com/p/DbEgdzMDK4g/?img_index=2&igsh=MXR6NTR3Y25jdTdicw=="
+    )
+    assert multi["video_url"].endswith("v1.mp4"), multi
+    assert multi["photo_urls"] == [
+        "https://example.com/p1.jpg",
+        "https://example.com/p2.jpg",
+    ], multi
+    assert multi["gallery"] == [
+        "https://example.com/v1.mp4",
+        "https://example.com/v2.mp4",
+        "https://example.com/p1.jpg",
+        "https://example.com/p2.jpg",
+    ], multi
+    assert multi["gallery_types"] == ["video", "video", "photo", "photo"], multi
+    assert multi["thumbnail"] == "https://example.com/t1.jpg", multi
+
+    photo_only = _cc.cobalt_extract(
+        "https://www.instagram.com/p/DbRkanLiFzI/?img_index=1&igsh=MWExNTRiM29yenc0dQ=="
+    )
+    assert photo_only["video_url"] is None, photo_only
+    assert photo_only["photo_urls"] == ["https://example.com/pa.jpg"], photo_only
+    assert photo_only["thumbnail"] == "https://example.com/ta.jpg", photo_only
+
+
 @pytest.mark.live
 def test_live_instagram_extraction():
     """Only runs when an IG session cookie is configured."""

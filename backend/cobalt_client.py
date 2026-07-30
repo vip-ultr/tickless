@@ -102,27 +102,36 @@ def cobalt_extract(url: str, kind: str = "auto") -> dict[str, Any]:
         picker = data.get("picker") or []
         if not picker:
             raise ExtractionError("no_media")
-        first = picker[0]
-        if first.get("url"):
-            return cobalt_extract(first["url"], kind)
-        raise ExtractionError("no_media")
+        items = _normalize_media_items(picker)
+        return _build_gallery_or_single(items)
 
     if status == "local-processing":
         tunnels = data.get("tunnel") or []
         if not tunnels:
             raise ExtractionError("extract_failed")
-        tunnel = _pick_video_tunnel(tunnels) or tunnels[0]
         output = data.get("output") or {}
-        return {
-            "title": (output.get("filename") or "video")[:200],
-            "author": _metadata_artist(output.get("metadata")),
-            "duration": None,
-            "thumbnail": None,
-            "video_url": tunnel,
-            "audio_url": None,
-            "width": None,
-            "height": None,
-        }
+        items = [
+            {
+                "url": t,
+                "type": "video",
+                "thumb": None,
+                "width": None,
+                "height": None,
+            }
+            for t in tunnels
+            if "/audio/" not in t and "/gif/" not in t
+        ]
+        if not items:
+            items = [
+                {
+                    "url": tunnels[0],
+                    "type": "video",
+                    "thumb": None,
+                    "width": None,
+                    "height": None,
+                }
+            ]
+        return _build_gallery_or_single(items)
 
     raise ExtractionError("extract_failed")
 
@@ -132,6 +141,80 @@ def _pick_video_tunnel(tunnels: list[str]) -> str | None:
         if "/audio/" not in t and "/gif/" not in t:
             return t
     return None
+
+
+def _normalize_media_items(picker: list[dict]) -> list[dict]:
+    items: list[dict] = []
+    for entry in picker:
+        if not isinstance(entry, dict):
+            continue
+        url = entry.get("url")
+        if not url:
+            continue
+        item_type = entry.get("type") or "video"
+        if item_type not in {"photo", "video"}:
+            item_type = "video"
+        thumb = entry.get("thumb") or entry.get("thumbnail")
+        width = entry.get("width") or entry.get("video_width")
+        height = entry.get("height") or entry.get("video_height")
+        if width is not None:
+            try:
+                width = int(width)
+            except Exception:
+                width = None
+        if height is not None:
+            try:
+                height = int(height)
+            except Exception:
+                height = None
+        items.append(
+            {
+                "url": url,
+                "type": item_type,
+                "thumb": thumb,
+                "width": width,
+                "height": height,
+            }
+        )
+    return items
+
+
+def _build_gallery_or_single(items: list[dict]) -> dict[str, Any]:
+    if not items:
+        raise ExtractionError("no_media")
+    photo_count = sum(1 for item in items if item.get("type") == "photo")
+    video_count = sum(1 for item in items if item.get("type") != "photo")
+    title_parts = []
+    if video_count:
+        title_parts.append(f"{video_count} video" if video_count == 1 else f"{video_count} videos")
+    if photo_count:
+        title_parts.append(f"{photo_count} photo" if photo_count == 1 else f"{photo_count} photos")
+    title = ", ".join(title_parts) or "Instagram post"
+
+    primary = next((item for item in items if item.get("type") == "video"), None) or items[0]
+    all_urls = [item["url"] for item in items]
+    all_types = [item.get("type", "video") for item in items]
+    thumbs = [item.get("thumb") for item in items if item.get("thumb")]
+
+    primary_type = primary.get("type", "video")
+    result: dict[str, Any] = {
+        "title": title[:200],
+        "author": "",
+        "duration": None,
+        "thumbnail": thumbs[0] if thumbs else primary.get("thumb"),
+        "video_url": primary["url"],
+        "audio_url": None,
+        "width": primary.get("width"),
+        "height": primary.get("height"),
+        "gallery": all_urls if len(items) > 1 else None,
+        "gallery_types": all_types if len(items) > 1 else None,
+    }
+    if primary_type == "photo":
+        result["video_url"] = None
+        result["photo_urls"] = all_urls
+    elif photo_count:
+        result["photo_urls"] = [item["url"] for item in items if item.get("type") == "photo"]
+    return result
 
 
 def _clean_filename(filename: str) -> str:
