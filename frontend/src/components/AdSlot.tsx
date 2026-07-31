@@ -12,8 +12,8 @@ type Ad = {
 };
 
 const SLOT_SIZES: Record<string, string> = {
-  leaderboard: "h-[300px]",
-  in_content: "h-[300px]",
+  leaderboard: "h-[180px]",
+  in_content: "h-[180px]",
   result: "h-[250px]",
 };
 
