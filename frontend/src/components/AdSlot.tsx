@@ -12,9 +12,12 @@ type Ad = {
 };
 
 const SLOT_SIZES: Record<string, string> = {
-  leaderboard: "h-[180px]",
-  in_content: "h-[180px]",
-  result: "h-[250px]",
+  // Responsive heights: shorter on mobile, taller on desktop so the banner
+  // keeps a sensible shape at both content widths (full width on mobile,
+  // max-w-3xl on desktop).
+  leaderboard: "h-[90px] md:h-[180px]",
+  in_content: "h-[140px] md:h-[180px]",
+  result: "h-[220px] md:h-[250px]",
 };
 
 /**
