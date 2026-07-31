@@ -1,11 +1,11 @@
 @import "tailwindcss";
 
 /* ------------------------------------------------------------------ */
-/* Tickless brand tokens (LOCKED) - midnight + cyan accent, NO gradients */
+/* Tickless brand tokens (LOCKED) - midnight + green primary, cyan accent, NO gradients */
 /* ------------------------------------------------------------------ */
 :root {
-  --brand-primary: oklch(0.78 0.16 195);   /* luminous cyan */
-  --brand-accent:  oklch(0.86 0.19 130);   /* electric lime (small accents only) */
+  --brand-primary: oklch(0.86 0.19 130);   /* electric lime / green (primary) */
+  --brand-accent:  oklch(0.78 0.16 195);   /* luminous cyan (accent only) */
   --bg-base:       oklch(0.15 0.015 240);  /* midnight slate */
   --bg-elevated:   oklch(0.20 0.02 240);   /* card surface  */
   --glass-tint:    oklch(0.65 0.03 220 / 0.08);
