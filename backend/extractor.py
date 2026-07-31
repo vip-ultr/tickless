@@ -51,13 +51,28 @@ _youtube_cookie_file: str | None = None
 
 
 def _youtube_cookiefile() -> str | None:
-    """Materialize a Netscape cookie jar for YouTube if cookie data exists."""
+    """Materialize a Netscape cookie jar for YouTube if cookie data exists.
+
+    YOUTUBE_COOKIE accepts EITHER a single raw cookie value OR a full
+    Netscape/PERL cookies.txt export (paste your whole cookies.txt). The full
+    export is strongly preferred: YouTube's bot-wall requires the real auth
+    cookies (CONSENT, __Secure-*, SID, SAPISID, etc.), which a single-value
+    jar cannot satisfy.
+    """
     global _youtube_cookie_file
     if _youtube_cookie_file and os.path.isfile(_youtube_cookie_file):
         return _youtube_cookie_file
 
     raw = (YOUTUBE_COOKIE or "").strip()
     if raw:
+        # Full Netscape jar (contains newlines / "# Netscape" header)?
+        if "\n" in raw or raw.startswith("#"):
+            fd, path = tempfile.mkstemp(prefix="tickless-yt-", suffix=".txt")
+            with os.fdopen(fd, "w") as f:
+                f.write(raw if raw.endswith("\n") else raw + "\n")
+            _youtube_cookie_file = path
+            return path
+        # Single raw cookie value (legacy): build a minimal jar.
         fd, path = tempfile.mkstemp(prefix="tickless-yt-", suffix=".txt")
         with os.fdopen(fd, "w") as f:
             f.write("# Netscape HTTP Cookie File\n")
@@ -247,17 +262,30 @@ def extract(url: str) -> dict:
         msg = str(e).lower()
         if ("empty media response" in msg or "login" in msg or "rate-limit" in msg or "rate limit" in msg or "not a bot" in msg):
             code = "ig_blocked" if "instagram" in msg else "extract_failed"
-            # Without cookies, retry YouTube once with an alternate player client.
-            if _is_youtube_url(url) and "not a bot" in msg and not _platform_cookie_opts(url):
-                fallback = _yt_browser_fallback_opts(url)
-                if fallback:
+            is_yt_bot = _is_youtube_url(url) and "not a bot" in msg
+            # If cookies are configured, retry WITH them first (this is what
+            # actually beats the "confirm you're not a bot" wall from a
+            # datacenter IP). Only fall back to anonymous player clients if
+            # no cookies are present.
+            if is_yt_bot:
+                cookie_opts = _platform_cookie_opts(url)
+                if cookie_opts:
                     try:
-                        with yt_dlp.YoutubeDL({**opts_base, **fallback}) as ydl:
+                        with yt_dlp.YoutubeDL({**_YDL_OPTS, **cookie_opts}) as ydl:
                             info = ydl.extract_info(url, download=False)
+                        # Success with cookies -> continue below.
                     except Exception:
                         raise ExtractionError(code)
                 else:
-                    raise ExtractionError(code)
+                    fallback = _yt_browser_fallback_opts(url)
+                    if fallback:
+                        try:
+                            with yt_dlp.YoutubeDL({**opts_base, **fallback}) as ydl:
+                                info = ydl.extract_info(url, download=False)
+                        except Exception:
+                            raise ExtractionError(code)
+                    else:
+                        raise ExtractionError(code)
             else:
                 raise ExtractionError(code)
         # Geo / country lock: "not available in your country", "has not made
