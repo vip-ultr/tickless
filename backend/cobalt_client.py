@@ -2,6 +2,7 @@
 import importlib.util
 import json
 import os
+import re
 import urllib.error
 import urllib.request
 from pathlib import Path
@@ -103,7 +104,7 @@ def cobalt_extract(url: str, kind: str = "auto") -> dict[str, Any]:
         if not picker:
             raise ExtractionError("no_media")
         items = _normalize_media_items(picker)
-        return _build_gallery_or_single(items)
+        return _build_gallery_or_single(items, url)
 
     if status == "local-processing":
         tunnels = data.get("tunnel") or []
@@ -131,7 +132,7 @@ def cobalt_extract(url: str, kind: str = "auto") -> dict[str, Any]:
                     "height": None,
                 }
             ]
-        return _build_gallery_or_single(items)
+        return _build_gallery_or_single(items, url)
 
     raise ExtractionError("extract_failed")
 
@@ -179,17 +180,25 @@ def _normalize_media_items(picker: list[dict]) -> list[dict]:
     return items
 
 
-def _build_gallery_or_single(items: list[dict]) -> dict[str, Any]:
+def _build_gallery_or_single(items: list[dict], url: str = "") -> dict[str, Any]:
     if not items:
         raise ExtractionError("no_media")
     photo_count = sum(1 for item in items if item.get("type") == "photo")
     video_count = sum(1 for item in items if item.get("type") != "photo")
-    title_parts = []
-    if video_count:
-        title_parts.append(f"{video_count} video" if video_count == 1 else f"{video_count} videos")
-    if photo_count:
-        title_parts.append(f"{photo_count} photo" if photo_count == 1 else f"{photo_count} photos")
-    title = ", ".join(title_parts) or "Instagram post"
+
+    # Use the Instagram post shortcode as the naming base so every file is
+    # unique per post and reads cleanly (e.g. "Instagram post DbEgdzMDK4g"),
+    # instead of an ugly "9 videos, 1 photo" count phrase.
+    code = _ig_shortcode(url) if "instagram" in (url or "") else None
+    if code:
+        title = f"Instagram post {code}"
+    else:
+        title_parts = []
+        if video_count:
+            title_parts.append(f"{video_count} video" if video_count == 1 else f"{video_count} videos")
+        if photo_count:
+            title_parts.append(f"{photo_count} photo" if photo_count == 1 else f"{photo_count} photos")
+        title = ", ".join(title_parts) or "Instagram post"
 
     primary = next((item for item in items if item.get("type") == "video"), None) or items[0]
     all_urls = [item["url"] for item in items]
@@ -215,6 +224,14 @@ def _build_gallery_or_single(items: list[dict]) -> dict[str, Any]:
     elif photo_count:
         result["photo_urls"] = [item["url"] for item in items if item.get("type") == "photo"]
     return result
+
+
+def _ig_shortcode(url: str) -> str | None:
+    """Extract the Instagram post shortcode (p/..., reel/..., tv/...) for naming."""
+    if not url:
+        return None
+    m = re.search(r"instagram\.com/(?:p|reel|tv)/([A-Za-z0-9_-]+)", url)
+    return m.group(1) if m else None
 
 
 def _clean_filename(filename: str) -> str:

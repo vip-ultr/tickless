@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState, useEffect } from "react";
-import { Download, ClipboardPaste, Loader2, Music, Video } from "lucide-react";
+import { Download, ClipboardPaste, Loader2, Music } from "lucide-react";
 import { motion } from "framer-motion";
 import { API_URL } from "@/lib/config";
 import { AdSlot } from "./AdSlot";
@@ -174,16 +174,20 @@ function ResultCard({ data, sourceUrl, onReset }: { data: Result; sourceUrl: str
         const res = await fetch(dl("video", idx));
         if (!res.ok) continue;
         const blob = await res.blob();
-        const ext = blob.type.includes("video")
-          ? "mp4"
-          : blob.type.includes("image")
-            ? "jpg"
-            : "bin";
-        const filename = `tickless_${data.title || "instagram"}_${idx + 1}.${ext}`;
+        // Prefer the backend-suggested filename (Content-Disposition) so
+        // naming stays consistent and unique per post.
+        let filename = `tickless_${data.title || "instagram"}_${idx + 1}`;
+        const cd = res.headers.get("Content-Disposition");
+        if (cd) {
+          const m =
+            cd.match(/filename\*=UTF-8''([^;]+)/) ||
+            cd.match(/filename="?([^";]+)"?/);
+          if (m && m[1]) filename = decodeURIComponent(m[1]);
+        }
         const url = URL.createObjectURL(blob);
         const a = document.createElement("a");
         a.href = url;
-        a.download = filename.replace(/[^a-zA-Z0-9_\-. ]/g, "_").slice(0, 100);
+        a.download = filename;
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
@@ -248,25 +252,11 @@ function ResultCard({ data, sourceUrl, onReset }: { data: Result; sourceUrl: str
             Download all
           </button>
         )}
-        {hasGallery &&
-          gallery.map((item, idx) => {
-            const itemType = (galleryTypes[idx] || "video");
-            return (
-              <a
-                key={item}
-                href={dl("video", idx)}
-                className="btn-brand flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold"
-              >
-                <Video size={16} />
-                Download {idx + 1}
-              </a>
-            );
-          })}
         <a
           href={dl("video")}
           className="btn-brand flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold"
         >
-          <Video size={16} /> Download
+          <Download size={16} /> Download
         </a>
         {itemType === "video" && (
           <a
@@ -276,12 +266,6 @@ function ResultCard({ data, sourceUrl, onReset }: { data: Result; sourceUrl: str
             <Music size={16} /> Audio (MP3)
           </a>
         )}
-        <button
-          onClick={onReset}
-          className="rounded-xl px-4 py-2.5 text-sm tx-muted hover:tx"
-        >
-          Download another
-        </button>
       </div>
     </motion.div>
   );
