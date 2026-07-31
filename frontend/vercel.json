@@ -1,0 +1,7 @@
+{
+  "framework": "nextjs",
+  "buildCommand": "pnpm install --frozen-lockfile=false && pnpm build",
+  "installCommand": "pnpm install --frozen-lockfile=false",
+  "outputDirectory": ".next",
+  "devCommand": "pnpm dev"
+}
