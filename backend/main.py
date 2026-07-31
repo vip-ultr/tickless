@@ -208,6 +208,28 @@ async def health_extract():
     except ExtractionError as e:
         return JSONResponse(status_code=503, content={"status": "broken", "code": e.code,
                                                        "youtube_cookie_configured": yt_cookie_cfg})
+    except Exception:
+        # Any other failure (e.g. transient TikTok error) must not 500 the diag;
+        # we still want the cookie flag to surface.
+        return JSONResponse(status_code=503, content={"status": "broken", "code": "extract_failed",
+                                                       "youtube_cookie_configured": yt_cookie_cfg})
+
+
+@app.get("/api/health/config")
+async def health_config():
+    """Config-only probe: reports whether YouTube cookies are wired up, without
+    making any network request. Lets us verify the YOUTUBE_COOKIE env var
+    actually reaches the deployed container. No secret value is leaked."""
+    from extractor import YOUTUBE_COOKIE, YOUTUBE_COOKIE_BROWSER, YOUTUBE_SID, YOUTUBE_SAPISID
+    cookie_env = YOUTUBE_COOKIE or YOUTUBE_COOKIE_BROWSER or YOUTUBE_SID or YOUTUBE_SAPISID
+    return {
+        "youtube_cookie_configured": bool(cookie_env),
+        # How many lines / first cookie name, to confirm a FULL jar vs a stub —
+        # never the values.
+        "youtube_cookie_lines": (cookie_env.count("\n") + 1) if cookie_env else 0,
+        "youtube_cookie_looks_like_full_jar": cookie_env.strip().startswith("# Netscape")
+                                              and "SAPISID" in cookie_env,
+    }
 
 
 @app.post("/api/extract")
