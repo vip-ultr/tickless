@@ -59,7 +59,7 @@ export default function Home() {
         </section>
 
         {/* Ad: in-content between How-it-works and Why (zero footprint when empty) */}
-        <AdSlot slot="in_content" className="mt-16" />
+        <AdSlot slot="in_content" className="mt-16 w-full max-w-3xl mx-auto" />
 
         {/* Why Tickless */}
         <section className="mt-24">
