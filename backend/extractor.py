@@ -8,6 +8,14 @@ from yt_dlp.utils import DownloadError
 
 from validation import is_photo_slideshow
 
+# yt-dlp's YouTube signature/"n"-challenge solver shells out to `node`. If node
+# is installed but not on PATH (common in some containers), extraction fails with
+# "No video formats found" even with valid cookies. Prepend the usual node
+# locations so yt-dlp can always find it.
+for _node_dir in ("/usr/bin", "/usr/local/bin", "/opt/node/bin"):
+    if os.path.isdir(_node_dir) and _node_dir not in os.environ.get("PATH", ""):
+        os.environ["PATH"] = f"{os.environ.get('PATH', '')}:{_node_dir}"
+
 # Instagram requires an authenticated session since mid-2026 (yt-dlp issue
 # 17074): anonymous requests get "empty media response" even for public
 # reels. Operators can set IG_SESSIONID (the sessionid cookie value from a
