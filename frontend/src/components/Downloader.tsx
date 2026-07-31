@@ -168,6 +168,31 @@ function ResultCard({ data, sourceUrl, onReset }: { data: Result; sourceUrl: str
     return `${API_URL}/api/download?url=${encodeURIComponent(sourceUrl)}&kind=${kind}${key ? `&key=${encodeURIComponent(key)}` : ""}${hasGallery ? `&gallery_index=${galleryIndex}` : ""}`;
   };
 
+  const downloadAll = async () => {
+    for (let idx = 0; idx < gallery.length; idx++) {
+      try {
+        const res = await fetch(dl("video", idx));
+        if (!res.ok) continue;
+        const blob = await res.blob();
+        const ext = blob.type.includes("video")
+          ? "mp4"
+          : blob.type.includes("image")
+            ? "jpg"
+            : "bin";
+        const filename = `tickless_${data.title || "instagram"}_${idx + 1}.${ext}`;
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = filename.replace(/[^a-zA-Z0-9_\-. ]/g, "_").slice(0, 100);
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        setTimeout(() => URL.revokeObjectURL(url), 60000);
+      } catch {}
+      await new Promise((resolve) => setTimeout(resolve, 300));
+    }
+  };
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 12 }}
@@ -213,6 +238,16 @@ function ResultCard({ data, sourceUrl, onReset }: { data: Result; sourceUrl: str
       </div>
 
       <div className="mt-5 flex flex-wrap gap-3">
+        {hasGallery && (
+          <button
+            type="button"
+            onClick={downloadAll}
+            className="btn-brand flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold"
+          >
+            <Download size={16} />
+            Download all
+          </button>
+        )}
         {hasGallery &&
           gallery.map((item, idx) => {
             const itemType = (galleryTypes[idx] || "video");
