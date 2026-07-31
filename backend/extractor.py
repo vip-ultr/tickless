@@ -16,6 +16,35 @@ for _node_dir in ("/usr/bin", "/usr/local/bin", "/opt/node/bin"):
     if os.path.isdir(_node_dir) and _node_dir not in os.environ.get("PATH", ""):
         os.environ["PATH"] = f"{os.environ.get('PATH', '')}:{_node_dir}"
 
+# PO-token provider (bgutil-ytdlp-pot-provider) lets yt-dlp beat YouTube's bot
+# wall WITHOUT account cookies: it spawns headless Chrome to solve YouTube's
+# Proof-of-Origin challenge and feeds yt-dlp a fresh token. Requires the
+# `bgutil-ytdlp-pot-provider` pip + npm packages and a Chromium binary in the
+# image (see backend/Dockerfile). yt-dlp auto-injects the po_token for the
+# `web`/`web_safari` player clients once the plugin is importable.
+try:
+    import bgutil_ytdlp_pot_provider  # noqa: F401  (plugin side-effect registers it)
+    _POT_PLUGIN = True
+except Exception:
+    _POT_PLUGIN = False
+
+YOUTUBE_POT_ENABLED = os.getenv("YOUTUBE_POT_ENABLED", "1").strip().lower() not in (
+    "0", "false", "no",
+)
+
+
+def _chrome_binary() -> str | None:
+    for c in ("chromium", "chromium-browser", "google-chrome", "google-chrome-stable"):
+        p = shutil.which(c)
+        if p:
+            return p
+    return None
+
+
+# True only when the plugin is importable AND a Chromium binary exists. This is
+# what lets us defeat the bot wall from a datacenter IP without cookies.
+YOUTUBE_USE_POT = _POT_PLUGIN and bool(_chrome_binary()) and YOUTUBE_POT_ENABLED
+
 # Instagram requires an authenticated session since mid-2026 (yt-dlp issue
 # 17074): anonymous requests get "empty media response" even for public
 # reels. Operators can set IG_SESSIONID (the sessionid cookie value from a
@@ -243,6 +272,10 @@ _YDL_OPTS = {
     # allowed country, i.e. a proxy/VPN), but it helps some regions.
     "geo_bypass": True,
 }
+# When the PO-token provider is available (datacenter IP, no cookies), request
+# the `web`/`web_safari` clients so yt-dlp auto-injects the solved po_token.
+if YOUTUBE_USE_POT:
+    _YDL_OPTS["extractor_args"] = {"youtube": {"player_client": ["web_safari", "web"]}}
 
 
 def _pick_best_video(info: dict) -> dict | None:
@@ -282,6 +315,16 @@ def extract(url: str) -> dict:
                         with yt_dlp.YoutubeDL({**_YDL_OPTS, **cookie_opts}) as ydl:
                             info = ydl.extract_info(url, download=False)
                         # Success with cookies -> continue below.
+                    except Exception:
+                        raise ExtractionError(code)
+                elif YOUTUBE_USE_POT:
+                    # Cookie-less bot-wall defeat: let the PO-token provider
+                    # solve YouTube's Proof-of-Origin challenge for the `web`
+                    # client. No account needed.
+                    try:
+                        with yt_dlp.YoutubeDL({**_YDL_OPTS, "extractor_args":
+                            {"youtube": {"player_client": ["web_safari", "web"]}}}) as ydl:
+                            info = ydl.extract_info(url, download=False)
                     except Exception:
                         raise ExtractionError(code)
                 else:
