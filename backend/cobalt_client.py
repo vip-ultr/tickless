@@ -1,5 +1,4 @@
 """Cobalt API client for non-TikTok platforms."""
-import importlib.util
 import json
 import os
 import re
@@ -8,14 +7,7 @@ import urllib.request
 from pathlib import Path
 from typing import Any
 
-
-_BACKEND_DIR = Path(__file__).resolve().parent
-_EXTRACTOR_PATH = _BACKEND_DIR / "extractor.py"
-
-_spec = importlib.util.spec_from_file_location("tickless_extractor", _EXTRACTOR_PATH)
-_extractor_mod = importlib.util.module_from_spec(_spec)
-_spec.loader.exec_module(_extractor_mod)
-ExtractionError = _extractor_mod.ExtractionError
+from extractor import ExtractionError
 
 COBALT_TIMEOUT = int(os.getenv("COBALT_TIMEOUT", "120"))
 
@@ -57,9 +49,14 @@ def cobalt_extract(url: str, kind: str = "auto") -> dict[str, Any]:
         with urllib.request.urlopen(req, timeout=COBALT_TIMEOUT) as resp:
             data = json.loads(resp.read())
     except urllib.error.HTTPError as e:
-        raise ExtractionError("extract_failed") from e
+        # 5xx from Cobalt (e.g. 502 Bad Gateway) means the extractor service
+        # itself is down/unreachable, not a bad request. Surface a precise,
+        # friendly code so the frontend can tell the user to retry shortly.
+        code = "extractor_down" if e.code >= 500 else "extract_failed"
+        raise ExtractionError(code) from e
     except Exception as e:
-        raise ExtractionError("extract_failed") from e
+        # Network failure / timeout reaching Cobalt -> service unavailable.
+        raise ExtractionError("extractor_down") from e
 
     if not isinstance(data, dict):
         raise ExtractionError("extract_failed")

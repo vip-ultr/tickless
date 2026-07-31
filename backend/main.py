@@ -53,6 +53,7 @@ ERROR_MESSAGES = {
     "slideshow": "This is a photo post. Photo to video is coming soon. Video posts work right now.",
     "no_media": "We could not find a downloadable video at that link.",
     "extract_failed": "Something went wrong on our side. Give it another try in a moment.",
+    "extractor_down": "Our Instagram service is temporarily unavailable. Try again in a few minutes.",
     "ig_blocked": "Instagram is blocking our server right now. Try again in a few minutes.",
 }
 
