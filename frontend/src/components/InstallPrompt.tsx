@@ -116,7 +116,7 @@ export function InstallPrompt() {
             )}
             <button
               onClick={dismiss}
-              className="flex items-center gap-2 rounded-xl px-4 py-2 text-sm tx-muted hover:tx"
+              className="glass flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold tx-muted hover:tx"
             >
               <X size={15} /> {ios ? "Got it" : "Not now"}
             </button>
