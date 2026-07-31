@@ -12,6 +12,7 @@ type Ad = {
   id: string;
   slot: string;
   image_url: string;
+  image_url_mobile?: string | null;
   target_url: string;
   is_active: boolean;
   impressions: number;
@@ -42,9 +43,11 @@ const SLOTS = ["leaderboard", "in_content", "result"] as const;
 
 // Recommended creative sizes shown in the admin (must match AdSlot rendering).
 const SLOT_SIZE_HINTS: Record<string, string> = {
-  leaderboard: "full-width banner (mobile 90px tall, desktop 180px)",
-  in_content: "full-width banner (mobile 140px tall, desktop 180px)",
-  result: "full-width block (mobile 220px, desktop 250px)",
+  leaderboard:
+    "Desktop 728 x 180 px (or 970 x 180) · Mobile 480 x 90 px (or 728 x 90)",
+  in_content:
+    "Desktop 728 x 180 px · Mobile 480 x 140 px",
+  result: "Desktop 728 x 250 px · Mobile 480 x 220 px",
 };
 
 const SLOT_LABELS: Record<string, string> = {
@@ -196,6 +199,7 @@ function Dashboard({ token, onLogout }: { token: string; onLogout: () => void })
   const [confirmDelete, setConfirmDelete] = useState<Ad | null>(null);
   const [selectedSlot, setSelectedSlot] = useState<string>("leaderboard");
   const [fileName, setFileName] = useState("");
+  const [mobileName, setMobileName] = useState("");
   const [visits, setVisits] = useState<VisitStats | null>(null);
   const [downloads, setDownloads] = useState<DownloadStats | null>(null);
 
@@ -234,12 +238,21 @@ function Dashboard({ token, onLogout }: { token: string; onLogout: () => void })
     setBusy(true);
     setError("");
     const form = new FormData(e.currentTarget);
+    // Requirement: at least one creative must be uploaded to publish.
+    const hasDesktop = (form.get("image_desktop") as File)?.size > 0;
+    const hasMobile = (form.get("image_mobile") as File)?.size > 0;
+    if (!hasDesktop && !hasMobile) {
+      setError("Upload at least one image (desktop or mobile) to publish.");
+      setBusy(false);
+      return;
+    }
     try {
       const res = await authed("/api/admin/ads", { method: "POST", body: form });
       const body = await res.json();
       if (!res.ok) throw new Error(body.detail || "Upload failed.");
       (e.target as HTMLFormElement).reset();
       setFileName("");
+      setMobileName("");
       await load();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Upload failed.");
@@ -361,22 +374,43 @@ function Dashboard({ token, onLogout }: { token: string; onLogout: () => void })
           </div>
           <div className="min-w-0">
             <label className="mb-1.5 block text-xs font-medium uppercase tracking-wider tx-muted">
-              Creative image
+              Desktop / primary image
             </label>
             <label className="glass flex w-full cursor-pointer items-center gap-3 rounded-xl px-4 py-3 text-sm">
               <ImagePlus size={16} className="shrink-0 tx-brand" />
               <span className={`min-w-0 flex-1 truncate ${fileName ? "tx" : "tx-muted"}`}>
-                {fileName || "Choose an image (PNG, JPG, WebP, GIF)"}
+                {fileName || "Choose desktop image (PNG, JPG, WebP, GIF)"}
               </span>
               <input
-                name="image"
+                name="image_desktop"
                 type="file"
                 accept="image/png,image/jpeg,image/webp,image/gif"
-                required
                 className="sr-only"
                 onChange={(e) => setFileName(e.target.files?.[0]?.name || "")}
               />
             </label>
+            <p className="mt-1.5 px-1 text-xs tx-muted">At least one of desktop/mobile is required.</p>
+          </div>
+          <div className="min-w-0">
+            <label className="mb-1.5 block text-xs font-medium uppercase tracking-wider tx-muted">
+              Mobile image <span className="normal-case tx-muted">(optional)</span>
+            </label>
+            <label className="glass flex w-full cursor-pointer items-center gap-3 rounded-xl px-4 py-3 text-sm">
+              <ImagePlus size={16} className="shrink-0 tx-brand" />
+              <span className={`min-w-0 flex-1 truncate ${mobileName ? "tx" : "tx-muted"}`}>
+                {mobileName || "Choose mobile image (PNG, JPG, WebP, GIF)"}
+              </span>
+              <input
+                name="image_mobile"
+                type="file"
+                accept="image/png,image/jpeg,image/webp,image/gif"
+                className="sr-only"
+                onChange={(e) => setMobileName(e.target.files?.[0]?.name || "")}
+              />
+            </label>
+            <p className="mt-1.5 px-1 text-xs tx-muted">
+              If left empty, the desktop image is used on phones too.
+            </p>
           </div>
           <div className="flex md:items-end">
             <button
@@ -395,12 +429,24 @@ function Dashboard({ token, onLogout }: { token: string; onLogout: () => void })
         {ads.map((ad) => (
           <div key={ad.id} className="glass rounded-2xl p-4">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={ad.image_url}
-                alt=""
-                className="h-24 w-full rounded-lg object-cover sm:h-16 sm:w-28 sm:shrink-0"
-              />
+              <div className="flex gap-2">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={ad.image_url}
+                  alt=""
+                  title="Desktop creative"
+                  className="h-24 w-full rounded-lg object-cover sm:h-16 sm:w-28 sm:shrink-0"
+                />
+                {ad.image_url_mobile && (
+                  /* eslint-disable-next-line @next/next/no-img-element */
+                  <img
+                    src={ad.image_url_mobile}
+                    alt=""
+                    title="Mobile creative"
+                    className="h-24 w-24 rounded-lg object-cover sm:h-16 sm:w-20 sm:shrink-0"
+                  />
+                )}
+              </div>
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-medium">{ad.target_url}</p>
                 <p className="mt-1 text-xs tx-muted">

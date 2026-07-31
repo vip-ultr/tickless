@@ -3,14 +3,19 @@
 create table if not exists ads (
   id uuid primary key default gen_random_uuid(),
   slot text not null check (slot in ('leaderboard', 'in_content', 'result')),
-  image_url text not null,
+  image_url text,
+  image_url_mobile text,
   target_url text not null,
   is_active boolean not null default true,
   starts_at timestamptz,
   ends_at timestamptz,
   impressions bigint not null default 0,
   clicks bigint not null default 0,
-  created_at timestamptz not null default now()
+  created_at timestamptz not null default now(),
+  -- At least one creative (desktop or mobile) must be present to publish.
+  constraint ads_at_least_one_image check (
+    image_url is not null or image_url_mobile is not null
+  )
 );
 
 -- Atomic counter increments used by /impression and /click endpoints

@@ -119,28 +119,29 @@ async def list_ads():
 async def create_ad(
     slot: str = Form(...),
     target_url: str = Form(...),
-    image: UploadFile = File(...),
+    image_desktop: UploadFile = File(default=None),
+    image_mobile: UploadFile = File(default=None),
     starts_at: str | None = Form(default=None),
     ends_at: str | None = Form(default=None),
 ):
     _require_configured()
     if slot not in VALID_SLOTS:
         raise HTTPException(status_code=400, detail="Invalid slot.")
-    if image.content_type not in ("image/png", "image/jpeg", "image/webp", "image/gif"):
-        raise HTTPException(status_code=400, detail="Image must be png, jpg, webp, or gif.")
 
     sb = _require_configured()
-    ext = (image.filename or "ad.png").rsplit(".", 1)[-1].lower()
-    path = f"{uuid.uuid4()}.{ext}"
-    content = await image.read()
-    if len(content) > 2 * 1024 * 1024:
-        raise HTTPException(status_code=400, detail="Image must be under 2 MB.")
-    sb.storage.from_(ADS_BUCKET).upload(path, content, {"content-type": image.content_type})
-    image_url = sb.storage.from_(ADS_BUCKET).get_public_url(path)
+    desktop_url = await _upload_if_present(image_desktop, sb)
+    mobile_url = await _upload_if_present(image_mobile, sb)
+    # Requirement: at least one creative must be uploaded to publish an ad.
+    if not desktop_url and not mobile_url:
+        raise HTTPException(
+            status_code=400,
+            detail="Upload at least one image (desktop or mobile) to publish.",
+        )
 
     row = {
         "slot": slot,
-        "image_url": image_url,
+        "image_url": desktop_url,
+        "image_url_mobile": mobile_url,
         "target_url": target_url,
         "is_active": True,
         "starts_at": starts_at or None,
@@ -148,6 +149,21 @@ async def create_ad(
     }
     res = sb.table("ads").insert(row).execute()
     return res.data[0]
+
+
+async def _upload_if_present(image: UploadFile | None, sb) -> str | None:
+    """Upload one creative if supplied, validating type + size. Returns URL or None."""
+    if image is None or not image.filename:
+        return None
+    if image.content_type not in ("image/png", "image/jpeg", "image/webp", "image/gif"):
+        raise HTTPException(status_code=400, detail="Image must be png, jpg, webp, or gif.")
+    content = await image.read()
+    if len(content) > 2 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="Image must be under 2 MB.")
+    ext = (image.filename or "ad.png").rsplit(".", 1)[-1].lower()
+    path = f"{uuid.uuid4()}.{ext}"
+    sb.storage.from_(ADS_BUCKET).upload(path, content, {"content-type": image.content_type})
+    return sb.storage.from_(ADS_BUCKET).get_public_url(path)
 
 
 @router.patch("/api/admin/ads/{ad_id}", dependencies=[Depends(require_admin)])

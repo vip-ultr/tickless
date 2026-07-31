@@ -8,6 +8,7 @@ type Ad = {
   id: string;
   slot: string;
   image_url: string;
+  image_url_mobile?: string | null;
   target_url: string;
 };
 
@@ -26,6 +27,19 @@ const SLOT_SIZES: Record<string, string> = {
  * margins) is applied only when an ad actually renders, so empty slots
  * leave zero footprint in the layout.
  */
+/** Reactive matchMedia hook: true when viewport <= 767px (Tailwind's mobile breakpoint). */
+function useIsMobile(): boolean {
+  const [isMobile, setIsMobile] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 767px)");
+    const update = () => setIsMobile(mq.matches);
+    update();
+    mq.addEventListener("change", update);
+    return () => mq.removeEventListener("change", update);
+  }, []);
+  return isMobile;
+}
+
 export function AdSlot({
   slot,
   className = "",
@@ -34,6 +48,7 @@ export function AdSlot({
   className?: string;
 }) {
   const [ad, setAd] = useState<Ad | null>(null);
+  const isMobile = useIsMobile();
 
   useEffect(() => {
     let cancelled = false;
@@ -70,8 +85,13 @@ export function AdSlot({
             fetch(`${API_URL}/api/ads/${ad.id}/click`, { method: "POST" }).catch(() => {});
           }}
         >
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={ad.image_url} alt="Advertisement" className="h-full w-full rounded-2xl border border-[var(--glass-border)] object-cover" />
+          {/* Pick the device-specific creative; fall back to desktop when a
+              mobile one wasn't uploaded (or vice-versa). */}
+          <img
+            src={(isMobile && ad.image_url_mobile) || ad.image_url}
+            alt="Advertisement"
+            className="h-full w-full rounded-2xl border border-[var(--glass-border)] object-cover"
+          />
         </a>
       </div>
     </div>
