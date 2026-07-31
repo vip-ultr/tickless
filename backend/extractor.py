@@ -215,6 +215,10 @@ _YDL_OPTS = {
     "no_warnings": True,
     "skip_download": True,
     "noplaylist": False,
+    # Best-effort: try to route around soft geo restrictions. This does NOT
+    # defeat a hard uploader country-lock (that needs an egress IP in an
+    # allowed country, i.e. a proxy/VPN), but it helps some regions.
+    "geo_bypass": True,
 }
 
 
@@ -256,6 +260,10 @@ def extract(url: str) -> dict:
                     raise ExtractionError(code)
             else:
                 raise ExtractionError(code)
+        # Geo / country lock: "not available in your country", "has not made
+        # this video available", "country". Returns a clean message, not a 502.
+        if "not available in your country" in msg or "not made this video available" in msg or "country" in msg or "geo" in msg:
+            raise ExtractionError("unavailable")
         if "private" in msg or "unavailable" in msg or "not available" in msg:
             raise ExtractionError("unavailable")
         raise ExtractionError("extract_failed")
