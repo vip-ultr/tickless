@@ -30,9 +30,9 @@ export default function Home() {
         <AdSlot slot="leaderboard" className="pt-6" />
         {/* Hero */}
         <section className="pt-10 md:pt-16">
-          <p className="mb-4 text-sm font-medium tx-brand">Free TikTok, Instagram &amp; YouTube downloader</p>
+          <p className="mb-4 text-sm font-medium tx-accent">Free TikTok, Instagram &amp; YouTube downloader</p>
           <h1 className="text-3xl font-extrabold leading-tight tracking-tight md:text-5xl">
-            Save any TikTok, Instagram Reel, or YouTube video without the <span className="tx-brand">watermark</span>.
+            Save any TikTok, Instagram Reel, or YouTube video without the <span className="tx-accent">watermark</span>.
           </h1>
           <p className="mt-5 max-w-xl text-base tx-muted md:text-lg">
             Paste the link, pick your quality, and the clean video lands on your device in seconds. No app to install, no account to make.
@@ -69,7 +69,7 @@ export default function Home() {
               <div key={f.title} className="glass rounded-2xl p-6">
                 <f.icon
                   size={22}
-                  className={i % 2 === 0 ? "tx-brand" : "tx-muted"}
+                  className={i % 2 === 0 ? "tx-accent" : "tx-brand"}
                 />
                 <h3 className="mt-4 font-semibold">{f.title}</h3>
                 <p className="mt-2 text-sm tx-muted">{f.body}</p>
