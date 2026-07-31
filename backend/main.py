@@ -199,11 +199,15 @@ async def health():
 @app.get("/api/health/extract")
 async def health_extract():
     """Deep health check. Used by the daily cron to catch yt-dlp breakage."""
+    from extractor import YOUTUBE_COOKIE, YOUTUBE_COOKIE_BROWSER, YOUTUBE_SID, YOUTUBE_SAPISID
+    yt_cookie_cfg = bool(YOUTUBE_COOKIE or YOUTUBE_COOKIE_BROWSER or YOUTUBE_SID or YOUTUBE_SAPISID)
     try:
         data = extract(HEALTHCHECK_URL)
-        return {"status": "ok", "has_video": bool(data.get("video_url"))}
+        return {"status": "ok", "has_video": bool(data.get("video_url")),
+                "youtube_cookie_configured": yt_cookie_cfg}
     except ExtractionError as e:
-        return JSONResponse(status_code=503, content={"status": "broken", "code": e.code})
+        return JSONResponse(status_code=503, content={"status": "broken", "code": e.code,
+                                                       "youtube_cookie_configured": yt_cookie_cfg})
 
 
 @app.post("/api/extract")
