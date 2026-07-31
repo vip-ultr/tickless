@@ -17,33 +17,35 @@ for _node_dir in ("/usr/bin", "/usr/local/bin", "/opt/node/bin"):
         os.environ["PATH"] = f"{os.environ.get('PATH', '')}:{_node_dir}"
 
 # PO-token provider (bgutil-ytdlp-pot-provider) lets yt-dlp beat YouTube's bot
-# wall WITHOUT account cookies: it spawns headless Chrome to solve YouTube's
-# Proof-of-Origin challenge and feeds yt-dlp a fresh token. Requires the
-# `bgutil-ytdlp-pot-provider` pip + npm packages and a Chromium binary in the
-# image (see backend/Dockerfile). yt-dlp auto-injects the po_token for the
-# `web`/`web_safari` player clients once the plugin is importable.
+# wall WITHOUT account cookies: it requests a Proof-of-Origin token from a
+# local provider backend that solves YouTube's BotGuard challenge. We use the
+# Rust port (bgutil-ytdlp-pot-provider-rs) as that backend — a single static
+# binary (bgutil-pot) running an HTTP server on POT_PROVIDER_URL. No Chrome,
+# no Node, no account needed; safe from a datacenter IP.
 try:
     import bgutil_ytdlp_pot_provider  # noqa: F401  (plugin side-effect registers it)
     _POT_PLUGIN = True
 except Exception:
     _POT_PLUGIN = False
 
+# The bgutil-pot Rust binary location (installed in the Docker image).
+_POT_BINARY = os.getenv("POT_BINARY", "/usr/local/bin/bgutil-pot")
+# Where the provider HTTP server listens (the Rust binary is launched with
+# --address/--port to match this).
+POT_PROVIDER_URL = os.getenv("POT_PROVIDER_URL", "http://127.0.0.1:4416").rstrip("/")
+
 YOUTUBE_POT_ENABLED = os.getenv("YOUTUBE_POT_ENABLED", "1").strip().lower() not in (
     "0", "false", "no",
 )
 
 
-def _chrome_binary() -> str | None:
-    for c in ("chromium", "chromium-browser", "google-chrome", "google-chrome-stable"):
-        p = shutil.which(c)
-        if p:
-            return p
-    return None
+def _pot_binary_present() -> bool:
+    return os.path.isfile(_POT_BINARY) and os.access(_POT_BINARY, os.X_OK)
 
 
-# True only when the plugin is importable AND a Chromium binary exists. This is
-# what lets us defeat the bot wall from a datacenter IP without cookies.
-YOUTUBE_USE_POT = _POT_PLUGIN and bool(_chrome_binary()) and YOUTUBE_POT_ENABLED
+# True only when the plugin is importable AND the Rust provider binary exists.
+# This is what lets us defeat the bot wall from a datacenter IP without cookies.
+YOUTUBE_USE_POT = _POT_PLUGIN and _pot_binary_present() and YOUTUBE_POT_ENABLED
 
 # Instagram requires an authenticated session since mid-2026 (yt-dlp issue
 # 17074): anonymous requests get "empty media response" even for public
@@ -273,9 +275,13 @@ _YDL_OPTS = {
     "geo_bypass": True,
 }
 # When the PO-token provider is available (datacenter IP, no cookies), request
-# the `web`/`web_safari` clients so yt-dlp auto-injects the solved po_token.
+# the `web`/`web_safari` clients so yt-dlp auto-injects the solved po_token, and
+# point the bgutil plugin at our local Rust provider HTTP server.
 if YOUTUBE_USE_POT:
-    _YDL_OPTS["extractor_args"] = {"youtube": {"player_client": ["web_safari", "web"]}}
+    _YDL_OPTS["extractor_args"] = {
+        "youtube": {"player_client": ["web_safari", "web"]},
+        "youtubepot-bgutilhttp": {"base_url": POT_PROVIDER_URL},
+    }
 
 
 def _pick_best_video(info: dict) -> dict | None:
