@@ -220,16 +220,18 @@ async def health_config():
     """Config-only probe: reports whether YouTube cookies are wired up, without
     making any network request. Lets us verify the YOUTUBE_COOKIE env var
     actually reaches the deployed container. No secret value is leaked."""
-    from extractor import YOUTUBE_COOKIE, YOUTUBE_COOKIE_BROWSER, YOUTUBE_SID, YOUTUBE_SAPISID
-    cookie_env = YOUTUBE_COOKIE or YOUTUBE_COOKIE_BROWSER or YOUTUBE_SID or YOUTUBE_SAPISID
-    return {
-        "youtube_cookie_configured": bool(cookie_env),
-        # How many lines / first cookie name, to confirm a FULL jar vs a stub —
-        # never the values.
-        "youtube_cookie_lines": (cookie_env.count("\n") + 1) if cookie_env else 0,
-        "youtube_cookie_looks_like_full_jar": cookie_env.strip().startswith("# Netscape")
-                                              and "SAPISID" in cookie_env,
-    }
+    try:
+        from extractor import YOUTUBE_COOKIE, YOUTUBE_COOKIE_BROWSER, YOUTUBE_SID, YOUTUBE_SAPISID
+        cookie_env = YOUTUBE_COOKIE or YOUTUBE_COOKIE_BROWSER or YOUTUBE_SID or YOUTUBE_SAPISID
+        return {
+            "youtube_cookie_configured": bool(cookie_env),
+            "youtube_cookie_lines": (cookie_env.count("\n") + 1) if cookie_env else 0,
+            "youtube_cookie_looks_like_full_jar": bool(cookie_env)
+                and cookie_env.strip().startswith("# Netscape")
+                and "SAPISID" in cookie_env,
+        }
+    except Exception as e:  # never 500 the diagnostic
+        return JSONResponse(status_code=200, content={"error": f"{type(e).__name__}: {e}"})
 
 
 @app.post("/api/extract")
