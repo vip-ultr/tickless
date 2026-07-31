@@ -87,9 +87,9 @@
     .glass-strong { background: var(--bg-elevated); }
   }
 
-  /* Solid brand button - green accent */
+  /* Solid brand button - green primary */
   .btn-brand {
-    background: var(--brand-accent);
+    background: var(--brand-primary);
     color: var(--text-on-brand);
     transition: filter 0.15s ease;
   }
@@ -156,14 +156,12 @@
   --cc-bg: oklch(0.20 0.02 240);
   --cc-primary-color: var(--text-primary);
   --cc-secondary-color: var(--text-muted);
-  --cc-btn-primary-bg: var(--brand-accent);
+  --cc-btn-primary-bg: var(--brand-primary);
   --cc-btn-primary-color: var(--text-on-brand);
-  --cc-btn-primary-hover-bg: oklch(0.80 0.19 130);
-  --cc-btn-secondary-bg: oklch(0.26 0.02 240);
-  --cc-btn-secondary-color: var(--text-primary);
-  --cc-btn-secondary-hover-bg: oklch(0.30 0.02 240);
+  --cc-btn-primary-hover-bg: oklch(0.90 0.19 130);
+  --cc-secondary-color: var(--text-muted);
   --cc-separator-border-color: var(--glass-border);
-  --cc-toggle-on-bg: var(--brand-accent);
+  --cc-toggle-on-bg: var(--brand-primary);
   --cc-cookie-category-block-bg: oklch(0.17 0.02 240);
   --cc-cookie-category-block-hover-bg: oklch(0.22 0.02 240);
   --cc-modal-border-radius: 0.75rem;

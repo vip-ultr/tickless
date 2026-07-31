@@ -13,7 +13,7 @@ export default function AboutPage() {
       <Navbar />
       <main className="mx-auto max-w-3xl px-5 pt-16">
         <h1 className="text-3xl font-extrabold tracking-tight md:text-5xl">
-          About <span className="tx-accent">Tickless</span>
+          About <span className="tx-brand">Tickless</span>
         </h1>
 
         <div className="glass mt-10 rounded-3xl p-8">

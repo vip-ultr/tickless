@@ -87,7 +87,7 @@ export function Downloader() {
             onChange={(e) => setUrl(e.target.value)}
             aria-label="TikTok, Instagram, or YouTube link"
             placeholder="Paste your TikTok, Instagram, or YouTube link"
-            style={{ color: "var(--text-primary)", caretColor: "var(--brand-accent)" }}
+            style={{ color: "var(--text-primary)", caretColor: "var(--brand-primary)" }}
             className="w-full bg-transparent py-3 font-mono text-sm outline-none placeholder:tx-muted"
           />
           <button
@@ -229,7 +229,7 @@ function ResultCard({ data, sourceUrl, onReset }: { data: Result; sourceUrl: str
                   onClick={() => setSelectedGalleryIndex(idx)}
                   className={`shrink-0 rounded-lg border-2 px-3 py-1 text-xs font-medium transition-colors ${
                     idx === selectedGalleryIndex
-                      ? "border-[var(--brand-accent)] bg-[var(--brand-accent)]/10 tx"
+                      ? "border-[var(--brand-primary)] bg-[var(--brand-primary)]/10 tx"
                       : "border-transparent bg-[var(--glass-border)] tx-muted"
                   }`}
                 >

@@ -56,7 +56,7 @@ export default function FaqPage() {
       <Navbar />
       <main className="mx-auto max-w-3xl px-5 pt-16">
         <h1 className="text-3xl font-extrabold tracking-tight md:text-5xl">
-          Questions, <span className="tx-accent">answered</span>.
+          Questions, <span className="tx-brand">answered</span>.
         </h1>
         <div className="mt-10 flex flex-col gap-4">
           {FAQS.map((f) => (

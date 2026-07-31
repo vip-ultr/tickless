@@ -48,7 +48,7 @@ export default function Home() {
           <div className="mt-8 grid gap-5 md:grid-cols-3">
             {STEPS.map((s) => (
               <div key={s.n} className="glass rounded-2xl p-6">
-                <div className="flex h-9 w-9 items-center justify-center rounded-full bg-[oklch(0.86_0.19_130_/_0.15)] font-bold tx-accent">
+                <div className="flex h-9 w-9 items-center justify-center rounded-full bg-[oklch(0.86_0.19_130_/_0.15)] font-bold tx-brand">
                   {s.n}
                 </div>
                 <h3 className="mt-4 font-semibold">{s.title}</h3>
@@ -69,7 +69,7 @@ export default function Home() {
               <div key={f.title} className="glass rounded-2xl p-6">
                 <f.icon
                   size={22}
-                  className={i % 2 === 0 ? "tx-brand" : "tx-accent"}
+                  className={i % 2 === 0 ? "tx-brand" : "tx-muted"}
                 />
                 <h3 className="mt-4 font-semibold">{f.title}</h3>
                 <p className="mt-2 text-sm tx-muted">{f.body}</p>
