@@ -242,6 +242,12 @@ function ResultCard({ data, sourceUrl, onReset }: { data: Result; sourceUrl: str
       </div>
 
       <div className="mt-5 flex flex-wrap gap-3">
+        <a
+          href={dl("video")}
+          className="btn-brand flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold"
+        >
+          <Download size={16} /> Download
+        </a>
         {hasGallery && (
           <button
             type="button"
@@ -252,12 +258,6 @@ function ResultCard({ data, sourceUrl, onReset }: { data: Result; sourceUrl: str
             Download all
           </button>
         )}
-        <a
-          href={dl("video")}
-          className="btn-brand flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold"
-        >
-          <Download size={16} /> Download
-        </a>
         {itemType === "video" && (
           <a
             href={dl("audio")}
