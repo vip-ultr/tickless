@@ -87,7 +87,7 @@ export function InstallPrompt() {
 
   return (
     <div className="fixed inset-x-0 bottom-0 z-50 flex justify-center px-3 pb-3 md:bottom-4 md:px-0">
-      <div className="glass flex w-full max-w-md items-start gap-3 rounded-2xl p-4">
+      <div className="glass-strong flex w-full max-w-md items-start gap-3 rounded-2xl p-4">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src="/apple-touch-icon.png"
