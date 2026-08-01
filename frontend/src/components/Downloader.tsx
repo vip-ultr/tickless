@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, useEffect } from "react";
+import { useRef, useState } from "react";
 import { Download, ClipboardPaste, Loader2, Music } from "lucide-react";
 import { motion } from "framer-motion";
 import { API_URL } from "@/lib/config";
@@ -121,7 +121,7 @@ export function Downloader() {
         )}
         {state.kind === "done" && (
           <>
-            <ResultCard data={state.data} sourceUrl={url.trim()} onReset={reset} />
+            <ResultCard key={url.trim()} data={state.data} sourceUrl={url.trim()} onReset={reset} />
             <AdSlot slot="result" className="mt-5" />
           </>
         )}
@@ -155,10 +155,6 @@ function ResultCard({ data, sourceUrl, onReset }: { data: Result; sourceUrl: str
   const gallery = data.gallery ?? [];
   const hasGallery = gallery.length > 1;
   const galleryTypes = data.gallery_types ?? [];
-
-  useEffect(() => {
-    setSelectedGalleryIndex(0);
-  }, [sourceUrl]);
 
   const itemType = hasGallery ? (galleryTypes[selectedGalleryIndex] || "video") : "video";
 

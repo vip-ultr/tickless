@@ -1,0 +1,33 @@
+Tickless
+Copyright (c) 2026 Optivis Labs
+
+This product includes or depends on the following open-source components:
+
+- yt-dlp (Unlicense / public domain) - media extraction.
+  https://github.com/yt-dlp/yt-dlp
+- Cobalt (GPL-3.0) - Instagram extraction backend.
+  https://github.com/imputnet/cobalt
+- bgutil-ytdlp-pot-provider (MIT) - YouTube Proof-of-Origin token provider.
+  https://github.com/Brainicism/bgutil-ytdlp-pot-provider
+- Next.js (MIT) - frontend framework.
+  https://github.com/vercel/next.js
+- React (MIT) - UI library.
+  https://github.com/facebook/react
+- Tailwind CSS (MIT) - styling.
+  https://github.com/tailwindlabs/tailwindcss
+- framer-motion (MIT) - animation.
+  https://github.com/motiondivision/motion
+- FastAPI (MIT) - backend framework.
+  https://github.com/fastapi/fastapi
+- Supabase (Apache-2.0) - Postgres and object storage.
+  https://github.com/supabase/supabase
+- lucide-react (ISC) - icons.
+  https://github.com/lucide-icons/lucide
+
+Each component is distributed under its own license. This NOTICE does not
+modify or extend those licenses. The MIT License covering Tickless source
+applies only to code authored by Optivis Labs.
+
+This product retrieves media from TikTok and Instagram. It is not affiliated
+with, endorsed by, or connected to TikTok, ByteDance, Instagram, or Meta
+Platforms. Use is subject to those platforms' terms of service.

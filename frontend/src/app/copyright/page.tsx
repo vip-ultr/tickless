@@ -11,7 +11,7 @@ export default function CopyrightPage() {
   return (
     <LegalPage title="Copyright">
       <p>
-        Tickless does not host any videos. All content stays on the source platform's
+        Tickless does not host any videos. All content stays on the source platform&apos;s
         servers (TikTok, Instagram) and belongs to its respective owner. We merely help
         you retrieve a copy of content that is already publicly available on those
         platforms.

@@ -14,7 +14,7 @@ export default function DmcaPage() {
 
       <p>
         Tickless does not host any content. It retrieves publicly available media from
-        the source platform's own servers at the user's request. We respond to good
+        the source platform&apos;s own servers at the user&apos;s request. We respond to good
         faith takedown requests from rights holders and will disable access to the
         specific content at issue.
       </p>

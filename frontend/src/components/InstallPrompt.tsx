@@ -17,28 +17,32 @@ function isIos(): boolean {
   const iOS = /iPad|iPhone|iPod/.test(ua);
   // iPadOS 13+ reports as Mac; detect via touch + Mac platform.
   const iPadOs =
-    /Macintosh/.test(ua) && typeof (navigator as any).maxTouchPoints === "number" && (navigator as any).maxTouchPoints > 1;
+    /Macintosh/.test(ua) &&
+    typeof navigator.maxTouchPoints === "number" &&
+    navigator.maxTouchPoints > 1;
   return iOS || iPadOs;
 }
 
 function isStandalone(): boolean {
   if (typeof window === "undefined") return false;
   const mq = window.matchMedia("(display-mode: standalone)").matches;
-  const navStandalone = (navigator as any).standalone === true;
+  // `standalone` is an iOS Safari extension to Navigator; not in the standard lib.
+  interface StandaloneNavigator extends Navigator {
+    standalone?: boolean;
+  }
+  const navStandalone = (navigator as StandaloneNavigator).standalone === true;
   return mq || navStandalone;
 }
 
 export function InstallPrompt() {
   const [deferred, setDeferred] = useState<BeforeInstallPromptEvent | null>(null);
   const [show, setShow] = useState(false);
-  const [ios, setIos] = useState(false);
+  const [ios] = useState(() => isIos());
 
   useEffect(() => {
     // Already installed (or dismissed before) -> never show.
     if (isStandalone()) return;
     if (typeof window !== "undefined" && localStorage.getItem(DISMISS_KEY)) return;
-
-    setIos(isIos());
 
     const onPrompt = (e: Event) => {
       e.preventDefault();

@@ -44,7 +44,7 @@ export default function TermsPage() {
 
       <h2 className="mt-6 text-base font-semibold tx">Intellectual property</h2>
       <p>
-        Tickless does not host any videos. All content remains on the source platform's
+        Tickless does not host any videos. All content remains on the source platform&apos;s
         servers and belongs to its respective owner. The Tickless software, brand, and
         website are the property of Optivis Labs.
       </p>
