@@ -108,6 +108,16 @@ def cobalt_extract(url: str, kind: str = "auto") -> dict[str, Any]:
         }:
             code = "unsupported"
         elif code in {
+            "error.api.fetch.empty",
+            "error.api.fetch.failed",
+            "cobalt.post-not-found",
+            "post-not-found",
+        }:
+            # Cobalt reached Instagram but got no media back. Common for
+            # carousels/albums or posts Instagram is currently gating; not a
+            # server outage, so tell the user it's this post, not the service.
+            code = "no_media"
+        elif code in {
             "cobalt.service-timedout",
             "service-timedout",
             "rate-limit",
