@@ -2,6 +2,7 @@
 import json
 import os
 import re
+import time
 import urllib.error
 import urllib.request
 from pathlib import Path
@@ -10,6 +11,13 @@ from typing import Any
 from extractor import ExtractionError
 
 COBALT_TIMEOUT = int(os.getenv("COBALT_TIMEOUT", "120"))
+# After Render spins a service down and back up, the *separate* Cobalt service
+# stays cold, so the first request 502s until it wakes (this is why TikTok works
+# but Instagram 502s on a cold start). We ping Cobalt once to wake it, and retry
+# 5xx responses a few times with backoff so the user request succeeds instead of
+# failing on the cold-start race.
+COBALT_WARMUP = os.getenv("COBALT_WARMUP", "1").strip().lower() not in ("0", "false", "no")
+COBALT_MAX_RETRIES = int(os.getenv("COBALT_MAX_RETRIES", "3"))
 
 
 def _headers() -> dict[str, str]:
@@ -17,6 +25,14 @@ def _headers() -> dict[str, str]:
         "Accept": "application/json",
         "Content-Type": "application/json",
     }
+
+
+def _ping_cobalt(cobalt_url: str) -> None:
+    """Best-effort GET to wake a cold Cobalt instance. Failures are ignored."""
+    try:
+        urllib.request.urlopen(f"{cobalt_url}/", timeout=10)
+    except Exception:
+        pass
 
 
 def cobalt_extract(url: str, kind: str = "auto") -> dict[str, Any]:
@@ -45,18 +61,36 @@ def cobalt_extract(url: str, kind: str = "auto") -> dict[str, Any]:
         headers=_headers(),
         method="POST",
     )
-    try:
-        with urllib.request.urlopen(req, timeout=COBALT_TIMEOUT) as resp:
-            data = json.loads(resp.read())
-    except urllib.error.HTTPError as e:
-        # 5xx from Cobalt (e.g. 502 Bad Gateway) means the extractor service
-        # itself is down/unreachable, not a bad request. Surface a precise,
-        # friendly code so the frontend can tell the user to retry shortly.
-        code = "extractor_down" if e.code >= 500 else "extract_failed"
-        raise ExtractionError(code) from e
-    except Exception as e:
-        # Network failure / timeout reaching Cobalt -> service unavailable.
-        raise ExtractionError("extractor_down") from e
+
+    # Wake a cold instance first (no-op once it's warm).
+    if COBALT_WARMUP:
+        _ping_cobalt(cobalt_url)
+
+    last_exc: Exception | None = None
+    for attempt in range(COBALT_MAX_RETRIES):
+        try:
+            with urllib.request.urlopen(req, timeout=COBALT_TIMEOUT) as resp:
+                data = json.loads(resp.read())
+            break
+        except urllib.error.HTTPError as e:
+            # 5xx from Cobalt (e.g. 502 Bad Gateway) means the extractor service
+            # itself is down/unreachable (often a cold start), not a bad request.
+            # Retry a few times — the warm-up ping usually brings it up.
+            last_exc = e
+            if e.code >= 500 and attempt < COBALT_MAX_RETRIES - 1:
+                time.sleep(2 * (attempt + 1))
+                continue
+            code = "extractor_down" if e.code >= 500 else "extract_failed"
+            raise ExtractionError(code) from e
+        except Exception as e:
+            # Network failure / timeout reaching Cobalt -> service unavailable.
+            last_exc = e
+            if attempt < COBALT_MAX_RETRIES - 1:
+                time.sleep(2 * (attempt + 1))
+                continue
+            raise ExtractionError("extractor_down") from e
+    else:
+        raise ExtractionError("extractor_down") from last_exc
 
     if not isinstance(data, dict):
         raise ExtractionError("extract_failed")
