@@ -9,9 +9,9 @@ const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"]
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://tickless.vercel.app"),
-  title: "Tickless - TikTok, Instagram & YouTube Video Downloader, No Watermark",
+  title: "Tickless - TikTok & Instagram Video Downloader, No Watermark",
   description:
-    "Download TikTok, Instagram Reels, and YouTube videos without watermark.",
+    "Download TikTok and Instagram videos without watermark.",
   applicationName: "Tickless",
   appleWebApp: {
     capable: true,
@@ -33,16 +33,16 @@ export const metadata: Metadata = {
   },
   manifest: "/manifest.webmanifest",
   openGraph: {
-    title: "Tickless - TikTok, Instagram & YouTube Video Downloader",
-    description: "Save TikTok, Instagram, and YouTube videos cleanly, no watermark.",
+    title: "Tickless - TikTok & Instagram Video Downloader",
+    description: "Save TikTok and Instagram videos cleanly, no watermark.",
     url: "https://tickless.vercel.app",
     siteName: "Tickless",
     type: "website",
   },
   twitter: {
     card: "summary",
-    title: "Tickless - TikTok, Instagram & YouTube Video Downloader",
-    description: "Save TikTok, Instagram, and YouTube videos cleanly, no watermark.",
+    title: "Tickless - TikTok & Instagram Video Downloader",
+    description: "Save TikTok and Instagram videos cleanly, no watermark.",
   },
   alternates: { canonical: "/" },
 };

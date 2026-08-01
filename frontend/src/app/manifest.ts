@@ -5,7 +5,7 @@ export default function manifest(): MetadataRoute.Manifest {
     name: "Tickless - Video Downloader",
     short_name: "Tickless",
     description:
-      "Download TikTok, Instagram Reels, and YouTube videos without watermark.",
+      "Download TikTok and Instagram videos without watermark.",
     start_url: "/",
     scope: "/",
     display: "standalone",
