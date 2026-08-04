@@ -13,11 +13,17 @@ from extractor import ExtractionError
 COBALT_TIMEOUT = int(os.getenv("COBALT_TIMEOUT", "120"))
 # After Render spins a service down and back up, the *separate* Cobalt service
 # stays cold, so the first request 502s until it wakes (this is why TikTok works
-# but Instagram 502s on a cold start). We ping Cobalt once to wake it, and retry
-# 5xx responses a few times with backoff so the user request succeeds instead of
-# failing on the cold-start race.
+# but Instagram 502s on a cold start). The fix: instead of a fire-and-forget ping
+# (which times out at 10s and gets ignored while Cobalt is still booting), we
+# POLL Cobalt until it actually responds, then do the real extraction. Live
+# measurement: a cold Render free-tier boot is ~23s, so budget 55s to stay safe.
 COBALT_WARMUP = os.getenv("COBALT_WARMUP", "1").strip().lower() not in ("0", "false", "no")
-COBALT_MAX_RETRIES = int(os.getenv("COBALT_MAX_RETRIES", "3"))
+# How long to keep polling for a cold Cobalt instance before giving up and
+# letting the normal 5xx-retry / error path take over.
+COBALT_WARMUP_BUDGET = int(os.getenv("COBALT_WARMUP_BUDGET", "55"))
+# Poll interval while waiting for Cobalt to wake.
+COBALT_WARMUP_INTERVAL = float(os.getenv("COBALT_WARMUP_INTERVAL", "3"))
+COBALT_MAX_RETRIES = int(os.getenv("COBALT_MAX_RETRIES", "4"))
 
 
 def _headers() -> dict[str, str]:
@@ -27,12 +33,68 @@ def _headers() -> dict[str, str]:
     }
 
 
-def _ping_cobalt(cobalt_url: str) -> None:
-    """Best-effort GET to wake a cold Cobalt instance. Failures are ignored."""
+def _warm_up_cobalt(cobalt_url: str) -> None:
+    """Block until Cobalt responds (cold-start readiness poll).
+
+    Render's free tier spins Cobalt down after inactivity; waking it takes
+    ~23s. A single fire-and-forget ping returns before Cobalt is up, so the
+    caller's first request 502s. Instead we poll until we get *any* HTTP
+    response (connection refused / timeout = still cold), up to a budget that
+    safely exceeds the cold-boot time. All errors are swallowed: if Cobalt
+    never comes up we just proceed and let the retry / error path handle it.
+    """
+    deadline = time.monotonic() + COBALT_WARMUP_BUDGET
+    while True:
+        try:
+            urllib.request.urlopen(f"{cobalt_url}/", timeout=COBALT_WARMUP_INTERVAL)
+            return  # Cobalt responded, it's up.
+        except Exception:
+            pass  # Still cold (refused / timeout) — keep polling.
+        if time.monotonic() >= deadline:
+            return
+        time.sleep(COBALT_WARMUP_INTERVAL)
+
+
+def _read_body(http_error: urllib.error.HTTPError):
+    """Best-effort JSON parse of an HTTPError response body."""
     try:
-        urllib.request.urlopen(f"{cobalt_url}/", timeout=10)
+        return json.loads(http_error.read().decode("utf-8", "replace"))
     except Exception:
-        pass
+        return None
+
+
+def _canon_cobalt_error(payload: dict) -> str:
+    """Map a Cobalt error payload to a canonical Tickless error code."""
+    error = payload.get("error") or {}
+    code = error.get("code") or "extract_failed"
+    if code in {
+        "invalid-url",
+        "cobalt.service-unsupported",
+        "service-unsupported",
+        "unsupported-service",
+    }:
+        return "unsupported"
+    if code in {
+        "error.api.fetch.empty",
+        "error.api.fetch.failed",
+        "cobalt.post-not-found",
+        "post-not-found",
+    }:
+        # Cobalt reached Instagram but got no media back. Common for
+        # carousels/albums or posts Instagram is currently gating; not a
+        # server outage, so tell the user it's this post, not the service.
+        return "no_media"
+    if code in {
+        "cobalt.service-timedout",
+        "service-timedout",
+        "rate-limit",
+        "ratelimit",
+        "too-many-requests",
+    }:
+        return "extract_failed"
+    # Codes that are already canonical Tickless codes (extractor_down,
+    # extract_failed, ig_blocked, unavailable, ...) pass through unchanged.
+    return code
 
 
 def cobalt_extract(url: str, kind: str = "auto") -> dict[str, Any]:
@@ -62,9 +124,9 @@ def cobalt_extract(url: str, kind: str = "auto") -> dict[str, Any]:
         method="POST",
     )
 
-    # Wake a cold instance first (no-op once it's warm).
+    # Wake a cold instance (polls until it responds; no-op once it's warm).
     if COBALT_WARMUP:
-        _ping_cobalt(cobalt_url)
+        _warm_up_cobalt(cobalt_url)
 
     last_exc: Exception | None = None
     for attempt in range(COBALT_MAX_RETRIES):
@@ -73,15 +135,22 @@ def cobalt_extract(url: str, kind: str = "auto") -> dict[str, Any]:
                 data = json.loads(resp.read())
             break
         except urllib.error.HTTPError as e:
-            # 5xx from Cobalt (e.g. 502 Bad Gateway) means the extractor service
-            # itself is down/unreachable (often a cold start), not a bad request.
-            # Retry a few times — the warm-up ping usually brings it up.
+            # Cobalt returns structured errors as HTTP 400 (e.g.
+            # error.api.fetch.empty for the Instagram login wall). Parse the
+            # body and map to the canonical Tickless code instead of a generic
+            # 500. A 5xx means the extractor service itself is down (often a
+            # cold start) -> retry a few times; the warm-up poll brings it up.
+            body = _read_body(e)
             last_exc = e
-            if e.code >= 500 and attempt < COBALT_MAX_RETRIES - 1:
-                time.sleep(2 * (attempt + 1))
-                continue
-            code = "extractor_down" if e.code >= 500 else "extract_failed"
-            raise ExtractionError(code) from e
+            if e.code >= 500:
+                if attempt < COBALT_MAX_RETRIES - 1:
+                    time.sleep(2 * (attempt + 1))
+                    continue
+                raise ExtractionError("extractor_down") from e
+            # 4xx: the body carries the real reason.
+            if isinstance(body, dict) and body.get("status") == "error":
+                raise ExtractionError(_canon_cobalt_error(body)) from e
+            raise ExtractionError("extract_failed") from e
         except Exception as e:
             # Network failure / timeout reaching Cobalt -> service unavailable.
             last_exc = e
@@ -97,35 +166,7 @@ def cobalt_extract(url: str, kind: str = "auto") -> dict[str, Any]:
 
     status = data.get("status")
     if status == "error":
-        error = data.get("error") or {}
-        code = error.get("code") or "extract_failed"
-        # Canonicalise Cobalt error codes to Tickless codes.
-        if code in {
-            "invalid-url",
-            "cobalt.service-unsupported",
-            "service-unsupported",
-            "unsupported-service",
-        }:
-            code = "unsupported"
-        elif code in {
-            "error.api.fetch.empty",
-            "error.api.fetch.failed",
-            "cobalt.post-not-found",
-            "post-not-found",
-        }:
-            # Cobalt reached Instagram but got no media back. Common for
-            # carousels/albums or posts Instagram is currently gating; not a
-            # server outage, so tell the user it's this post, not the service.
-            code = "no_media"
-        elif code in {
-            "cobalt.service-timedout",
-            "service-timedout",
-            "rate-limit",
-            "ratelimit",
-            "too-many-requests",
-        }:
-            code = "extract_failed"
-        raise ExtractionError(code)
+        raise ExtractionError(_canon_cobalt_error(data))
 
     if status in ("tunnel", "redirect"):
         filename = data.get("filename") or data.get("url", "video")

@@ -252,7 +252,10 @@ async def api_extract(
 
     try:
         if platform == "instagram":
-            data = cobalt_extract(url)
+            # Run in the threadpool: a cold-start warmup can block for up to
+            # COBALT_WARMUP_BUDGET (~55s), which would otherwise freeze the
+            # entire event loop (TikTok extraction, health checks, etc.).
+            data = await run_in_threadpool(cobalt_extract, url)
         else:
             data = extract(url)
     except ExtractionError as e:
