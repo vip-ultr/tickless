@@ -170,7 +170,12 @@ def test_cobalt_picker_multi_item_photo_and_video(monkeypatch, tmp_path):
     def fake_urlopen(req, timeout=None):
         import json
         from urllib.request import Request
-        body = json.loads(req.data.decode()) if req.data else {}
+        # The cold-start warmup probes with a plain URL string (no .data),
+        # while the real extraction passes a Request with a JSON body.
+        # Answer the warmup probe as "awake" so the test exercises the
+        # extraction path rather than the spin-down path.
+        data = getattr(req, "data", None)
+        body = json.loads(data.decode()) if data else {}
         url = body.get("url", "")
         if "DbEgdzMDK4g" in url:
             payload = {

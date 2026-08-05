@@ -54,6 +54,7 @@ ERROR_MESSAGES = {
     "no_media": "We could not find a downloadable video at that link.",
     "extract_failed": "Something went wrong on our side. Give it another try in a moment.",
     "extractor_down": "Our Instagram service is temporarily unavailable. Try again in a few minutes.",
+    "extractor_waking": "Our Instagram service is starting up. Give it about 30 seconds and try again.",
     "ig_blocked": "Instagram is blocking our server right now. Try again in a few minutes.",
 }
 
@@ -262,6 +263,15 @@ async def api_extract(
         detail = ERROR_MESSAGES.get(e.code, ERROR_MESSAGES["extract_failed"])
         if platform == "instagram" and e.code in ("unsupported", "service-unsupported"):
             detail = ERROR_MESSAGES["unsupported"]
+        if e.code == "extractor_waking":
+            # Cobalt is spun down / mid-boot. 503 + Retry-After is the honest
+            # status: this is transient and retrying shortly will work, unlike
+            # a 502 which reads as "broken".
+            raise HTTPException(
+                status_code=503,
+                detail=detail,
+                headers={"Retry-After": "30"},
+            )
         status = 400 if e.code in ("slideshow", "unavailable", "no_media", "ig_blocked", "unsupported") else 502
         raise HTTPException(status_code=status, detail=detail)
 
@@ -316,6 +326,19 @@ async def api_download(
     except HTTPException:
         shutil.rmtree(tmpdir, ignore_errors=True)
         raise
+    except ExtractionError as e:
+        shutil.rmtree(tmpdir, ignore_errors=True)
+        if e.code == "extractor_waking":
+            # Same cold-start case as /api/extract: transient, not an outage.
+            raise HTTPException(
+                status_code=503,
+                detail=ERROR_MESSAGES["extractor_waking"],
+                headers={"Retry-After": "30"},
+            )
+        raise HTTPException(
+            status_code=502,
+            detail=ERROR_MESSAGES.get(e.code, ERROR_MESSAGES["extract_failed"]),
+        )
     except Exception:
         logging.exception("download_media failed for %s", clean)
         shutil.rmtree(tmpdir, ignore_errors=True)

@@ -49,16 +49,27 @@ export function Downloader() {
       3000,
     );
     try {
-      const res = await fetch(`${API_URL}/api/extract`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(process.env.NEXT_PUBLIC_API_KEY
-            ? { "X-Tickless-Key": process.env.NEXT_PUBLIC_API_KEY }
-            : {}),
-        },
-        body: JSON.stringify({ url: url.trim() }),
-      });
+      const doExtract = () =>
+        fetch(`${API_URL}/api/extract`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...(process.env.NEXT_PUBLIC_API_KEY
+              ? { "X-Tickless-Key": process.env.NEXT_PUBLIC_API_KEY }
+              : {}),
+          },
+          body: JSON.stringify({ url: url.trim() }),
+        });
+
+      let res = await doExtract();
+      // 503 = the Instagram extractor is spinning up on the free tier. It
+      // takes ~25s to boot, so wait and retry once automatically instead of
+      // making the user click again.
+      if (res.status === 503) {
+        setState({ kind: "loading", slow: true });
+        await new Promise((r) => setTimeout(r, 30000));
+        res = await doExtract();
+      }
       const body = await res.json();
       if (!res.ok) {
         setState({ kind: "error", message: body.detail || "Something went wrong on our side. Give it another try in a moment." });

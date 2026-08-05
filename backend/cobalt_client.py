@@ -33,25 +33,41 @@ def _headers() -> dict[str, str]:
     }
 
 
-def _warm_up_cobalt(cobalt_url: str) -> None:
-    """Block until Cobalt responds (cold-start readiness poll).
+def _warm_up_cobalt(cobalt_url: str) -> bool:
+    """Poll Cobalt until it responds. Returns True if it came up.
 
-    Render's free tier spins Cobalt down after inactivity; waking it takes
-    ~23s. A single fire-and-forget ping returns before Cobalt is up, so the
-    caller's first request 502s. Instead we poll until we get *any* HTTP
-    response (connection refused / timeout = still cold), up to a budget that
-    safely exceeds the cold-boot time. All errors are swallowed: if Cobalt
-    never comes up we just proceed and let the retry / error path handle it.
+    Render's free tier spins Cobalt down after ~15 minutes idle. We poll
+    until we get *any* HTTP response (connection refused / timeout = still
+    cold), up to a budget that exceeds the ~23s cold-boot time.
+
+    IMPORTANT (measured Aug 2026): from INSIDE Render this poll usually
+    CANNOT wake Cobalt at all. Render routes service-to-service traffic
+    internally, straight to the stopped container, which refuses the
+    connection instantly rather than going through the public proxy that
+    boots it. Evidence: warm backend + cold Cobalt returned 502 after 68s
+    (= 55s budget + 12s of retry backoff, i.e. every probe failing
+    INSTANTLY, not timing out) and Cobalt's reported startTime showed it
+    never booted during the attempt. The same code run from an external
+    host woke it in ~27s.
+
+    The actual fix is therefore the EXTERNAL pinger in
+    .github/workflows/keep-cobalt-warm.yml. This poll is kept because it
+    still helps when Cobalt is mid-boot (started by the pinger or another
+    request), and the return value lets the caller emit an honest
+    "warming up" message instead of a bare failure.
     """
     deadline = time.monotonic() + COBALT_WARMUP_BUDGET
     while True:
         try:
             urllib.request.urlopen(f"{cobalt_url}/", timeout=COBALT_WARMUP_INTERVAL)
-            return  # Cobalt responded, it's up.
+            return True  # Cobalt responded, it's up.
+        except urllib.error.HTTPError:
+            # Any HTTP status means something is listening: Cobalt is up.
+            return True
         except Exception:
             pass  # Still cold (refused / timeout) — keep polling.
         if time.monotonic() >= deadline:
-            return
+            return False
         time.sleep(COBALT_WARMUP_INTERVAL)
 
 
@@ -125,8 +141,13 @@ def cobalt_extract(url: str, kind: str = "auto") -> dict[str, Any]:
     )
 
     # Wake a cold instance (polls until it responds; no-op once it's warm).
+    # If it never came up, there is no point burning another ~12s of retry
+    # backoff against a container that is not listening: fail fast with an
+    # honest "warming up" code so the caller can tell the user to retry
+    # shortly, rather than a generic outage message.
     if COBALT_WARMUP:
-        _warm_up_cobalt(cobalt_url)
+        if not _warm_up_cobalt(cobalt_url):
+            raise ExtractionError("extractor_waking")
 
     last_exc: Exception | None = None
     for attempt in range(COBALT_MAX_RETRIES):

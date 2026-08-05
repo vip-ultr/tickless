@@ -134,26 +134,52 @@ def test_warmup_polls_until_cobalt_comes_up(monkeypatch):
 
 def test_warmup_eventually_gives_up_if_cobalt_never_comes_up(monkeypatch):
     """If Cobalt never wakes, the poll must time out (not hang forever) and
-    the normal error path takes over."""
-    mod = _fresh_module()
+    report the transient 'waking' code.
+
+    Note: a 503 from a *listening* server means the container IS up, so the
+    warmup now treats any HTTP response as awake. To simulate a genuinely
+    spun-down container we point at a closed port (connection refused),
+    which is exactly what Render's internal routing returns for a stopped
+    service.
+    """
     monkeypatch.setenv("COBALT_WARMUP_BUDGET", "1")
     monkeypatch.setenv("COBALT_WARMUP_INTERVAL", "0.3")
-    # Stay cold forever (always 503 -> treated as not-up).
-    response = {"status": "error", "error": {"code": "extractor_down"}}
+    # Bind then close a port so nothing is listening -> connection refused.
+    import socket
+
+    s = socket.socket()
+    s.bind(("127.0.0.1", 0))
+    dead_port = s.getsockname()[1]
+    s.close()
+
+    monkeypatch.setenv("COBALT_URL", f"http://127.0.0.1:{dead_port}")
+    mod = _fresh_module()
+
+    start = time.monotonic()
+    with pytest.raises(mod.ExtractionError) as exc:
+        mod.cobalt_extract("https://www.instagram.com/reel/ABC/")
+    elapsed = time.monotonic() - start
+    # Must not hang indefinitely; should raise once the budget is spent.
+    assert elapsed < 6
+    # A never-waking Cobalt is transient, not a hard outage.
+    assert exc.value.code == "extractor_waking"
+
+
+def test_warmup_treats_any_http_response_as_awake(monkeypatch):
+    """Regression: a listening server returning 503 means the container is
+    UP (mid-boot), so we must proceed to the real POST rather than declaring
+    it asleep. Previously a 503 was swallowed as 'still cold'."""
+    monkeypatch.setenv("COBALT_WARMUP_BUDGET", "2")
+    monkeypatch.setenv("COBALT_WARMUP_INTERVAL", "0.3")
+
+    response = {"status": "tunnel", "url": "http://127.0.0.1:19003/dl", "filename": "x.mp4"}
+    # Stays "cold" (GET returns 503) but IS listening the whole time.
     server = FakeCobaltServer(response, cold=True)
     t = server.start()
     try:
         monkeypatch.setenv("COBALT_URL", f"http://{server.host}:{server.port}")
         mod = _fresh_module()
-
-        start = time.monotonic()
-        with pytest.raises(mod.ExtractionError) as exc:
-            mod.cobalt_extract("https://www.instagram.com/reel/ABC/")
-        elapsed = time.monotonic() - start
-        # Must not hang indefinitely; should raise once the budget is spent.
-        assert elapsed < 6
-        # A 503 from the (still-cold) Cobalt maps to the clean "service
-        # temporarily unavailable" message, not a generic extract_failed.
-        assert exc.value.code == "extractor_down"
+        d = mod.cobalt_extract("https://www.instagram.com/reel/ABC/")
+        assert d["video_url"] == response["url"]
     finally:
         t.join(timeout=3)
