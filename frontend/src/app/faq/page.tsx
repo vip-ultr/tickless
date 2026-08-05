@@ -26,7 +26,7 @@ const FAQS = [
   },
   {
     q: "Does it work with Instagram?",
-    a: "Yes. Paste an Instagram Reel or video post link in the same box and Tickless detects it automatically. Public posts only, and photo carousels are not supported yet.",
+    a: "Yes. Paste an Instagram Reel or video post link in the same box and Tickless detects it automatically. Public posts only. Photo carousels work too, and you can save each image or use Download all.",
   },
   {
     q: "Can I download the audio only?",
@@ -42,7 +42,7 @@ const FAQS = [
   },
   {
     q: "Can I download photo slideshows?",
-    a: "Not yet. Video posts work now. Turning photo slideshows into a video is on the way.",
+    a: "Yes. Paste a TikTok or Instagram photo post link and every image shows up as its own item. Save one at a time or hit Download all to get the whole set.",
   },
   {
     q: "Is this legal?",

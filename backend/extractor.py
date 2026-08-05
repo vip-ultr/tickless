@@ -244,6 +244,12 @@ def download_media(url: str, dest_dir: str, kind: str = "video") -> tuple[str, s
                 break
             except DownloadError as e:
                 last_err = e
+                # TikTok photo posts (/photo/ URLs) are not supported by
+                # yt-dlp at all. Retrying cannot help, so bail out
+                # immediately with the routing signal that tells the caller
+                # to fall back to Cobalt, which serves them as photos.
+                if "unsupported url" in str(e).lower():
+                    raise ExtractionError("use_cobalt")
                 # On YouTube bot-wall without effective cookies, try an
                 # alternate player client without relying on account cookies.
                 if "not a bot" in str(e).lower() and _is_youtube_url(url) and not _platform_cookie_opts(url):
@@ -345,6 +351,12 @@ def extract(url: str) -> dict:
                         raise ExtractionError(code)
             else:
                 raise ExtractionError(code)
+        # TikTok photo/slideshow posts use /photo/ URLs, which yt-dlp does not
+        # support at all ("Unsupported URL"). Our own Cobalt instance handles
+        # them fine and returns a photo picker, so surface a distinct code and
+        # let the caller route to Cobalt instead of failing with a generic 502.
+        if "unsupported url" in msg:
+            raise ExtractionError("use_cobalt")
         # Geo / country lock: "not available in your country", "has not made
         # this video available", "country". Returns a clean message, not a 502.
         if "not available in your country" in msg or "not made this video available" in msg or "country" in msg or "geo" in msg:
@@ -352,14 +364,22 @@ def extract(url: str) -> dict:
         if "private" in msg or "unavailable" in msg or "not available" in msg:
             raise ExtractionError("unavailable")
         raise ExtractionError("extract_failed")
+    except ExtractionError:
+        # Already a classified error (use_cobalt, unavailable, ig_blocked...).
+        # Must re-raise before the generic handler below flattens it into
+        # extract_failed and loses the routing signal.
+        raise
     except Exception:
         raise ExtractionError("extract_failed")
 
     if not info:
         raise ExtractionError("extract_failed")
 
+    # Photo/slideshow post reached via a URL yt-dlp *did* parse. Cobalt can
+    # serve these as a photo picker, so route there instead of telling the
+    # user photos are unsupported.
     if is_photo_slideshow(info):
-        raise ExtractionError("slideshow")
+        raise ExtractionError("use_cobalt")
 
     best = _pick_best_video(info)
     video_url = (best or {}).get("url") or info.get("url")

@@ -183,3 +183,44 @@ def test_warmup_treats_any_http_response_as_awake(monkeypatch):
         assert d["video_url"] == response["url"]
     finally:
         t.join(timeout=3)
+
+
+def test_tiktok_photo_post_titled_by_post_id(monkeypatch):
+    """TikTok photo posts must be named from the post id, not a count phrase.
+
+    Regression: without this the 34-photo post downloaded as "34 photos_1.jpg".
+    """
+    mod = _fresh_module()
+    picker = [
+        {"type": "photo", "url": f"https://example.com/p{i}.jpg"} for i in range(3)
+    ]
+    response = {"status": "picker", "picker": picker}
+    server = FakeCobaltServer(response)
+    t = server.start()
+    try:
+        monkeypatch.setenv("COBALT_URL", f"http://{server.host}:{server.port}")
+        mod = _fresh_module()
+        d = mod.cobalt_extract(
+            "https://www.tiktok.com/@someone/photo/7668704036874489108"
+        )
+        assert d["title"] == "TikTok post 7668704036874489108"
+        # Photo-only post: no video download button should be offered.
+        assert d["video_url"] is None
+        assert len(d["gallery"]) == 3
+        assert set(d["gallery_types"]) == {"photo"}
+    finally:
+        t.join(timeout=3)
+
+
+def test_tiktok_id_parses_photo_and_video_urls():
+    mod = _fresh_module()
+    assert (
+        mod._tiktok_id("https://www.tiktok.com/@a.b/photo/7668704036874489108?_r=1")
+        == "7668704036874489108"
+    )
+    assert (
+        mod._tiktok_id("https://www.tiktok.com/@tiktok/video/7106594312292453675")
+        == "7106594312292453675"
+    )
+    # Unresolved short links carry no id.
+    assert mod._tiktok_id("https://vt.tiktok.com/ZS49Ro7Am/") is None

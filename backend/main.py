@@ -50,7 +50,9 @@ ERROR_MESSAGES = {
     # Legacy alias kept so older callers/tests keep working.
     "not_tiktok": "That does not look like a TikTok, Instagram, or YouTube link. Check it and try again.",
     "unavailable": "We could not reach this video. It may be private, removed, or region locked.",
-    "slideshow": "This is a photo post. Photo to video is coming soon. Video posts work right now.",
+    # Photo posts are now served via Cobalt (TikTok /photo/ and Instagram
+    # carousels), so this only fires if that fallback itself found nothing.
+    "slideshow": "We could not find any photos or video at that link.",
     "no_media": "We could not find a downloadable video at that link.",
     "extract_failed": "Something went wrong on our side. Give it another try in a moment.",
     "extractor_down": "Our Instagram service is temporarily unavailable. Try again in a few minutes.",
@@ -258,7 +260,15 @@ async def api_extract(
             # entire event loop (TikTok extraction, health checks, etc.).
             data = await run_in_threadpool(cobalt_extract, url)
         else:
-            data = extract(url)
+            try:
+                data = await run_in_threadpool(extract, url)
+            except ExtractionError as e:
+                # TikTok photo posts (/photo/ URLs and slideshows) are not
+                # supported by yt-dlp, but our Cobalt instance returns them as
+                # a photo picker. Fall back to Cobalt instead of failing.
+                if e.code != "use_cobalt":
+                    raise
+                data = await run_in_threadpool(cobalt_extract, url)
     except ExtractionError as e:
         detail = ERROR_MESSAGES.get(e.code, ERROR_MESSAGES["extract_failed"])
         if platform == "instagram" and e.code in ("unsupported", "service-unsupported"):
@@ -308,21 +318,42 @@ async def api_download(
         raise HTTPException(status_code=400, detail=ERROR_MESSAGES["unsupported"])
 
     tmpdir = tempfile.mkdtemp(prefix="tickless-")
+
+    async def _cobalt_download(noun: str):
+        """Extract via Cobalt and stream the chosen gallery item to a file.
+
+        Used for Instagram (always) and for TikTok photo posts, which yt-dlp
+        cannot handle. Cobalt URLs are signed/tunnel links, so they must be
+        proxied through us rather than handed to the browser.
+        """
+        cdata = await run_in_threadpool(cobalt_extract, clean)
+        gallery = cdata.get("gallery") or []
+        safe_index = max(0, min(int(gallery_index or 0), len(gallery) - 1)) if gallery else 0
+        primary_url = gallery[safe_index] if gallery else cdata.get("video_url")
+        if not primary_url and cdata.get("photo_urls"):
+            primary_url = cdata["photo_urls"][0]
+        if not primary_url:
+            raise HTTPException(status_code=502, detail=ERROR_MESSAGES["no_media"])
+        p = await _proxy_remote_media(primary_url, tmpdir)
+        t = cdata.get("title") or f"{noun} post"
+        # NOTE: the per-item "_N" suffix is appended later (see the stem
+        # handling near build_download_filename), so do NOT add it here or
+        # filenames come out as "_1_1".
+        return p, t, cdata.get("author") or ""
+
     try:
         if platform == "instagram":
-            ig_data = await run_in_threadpool(cobalt_extract, clean)
-            gallery = ig_data.get("gallery") or []
-            safe_index = max(0, min(int(gallery_index or 0), len(gallery) - 1)) if gallery else 0
-            primary_url = gallery[safe_index] if gallery else ig_data.get("video_url")
-            if not primary_url and ig_data.get("photo_urls"):
-                primary_url = ig_data["photo_urls"][0]
-            if not primary_url:
-                raise HTTPException(status_code=502, detail=ERROR_MESSAGES["no_media"])
-            path = await _proxy_remote_media(primary_url, tmpdir)
-            title = ig_data.get("title") or "instagram post"
-            uploader = ig_data.get("author") or ""
+            path, title, uploader = await _cobalt_download("instagram")
         else:
-            path, title, uploader = await run_in_threadpool(download_media, clean, tmpdir, kind)
+            try:
+                path, title, uploader = await run_in_threadpool(
+                    download_media, clean, tmpdir, kind
+                )
+            except ExtractionError as e:
+                # TikTok photo post: yt-dlp cannot download it, Cobalt can.
+                if e.code != "use_cobalt":
+                    raise
+                path, title, uploader = await _cobalt_download(platform)
     except HTTPException:
         shutil.rmtree(tmpdir, ignore_errors=True)
         raise

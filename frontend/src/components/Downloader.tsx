@@ -11,7 +11,7 @@ type Result = {
   author: string;
   duration: number | null;
   thumbnail: string | null;
-  video_url: string;
+  video_url: string | null;
   audio_url: string | null;
   height: number | null;
   platform?: "tiktok" | "instagram";
@@ -183,7 +183,7 @@ function ResultCard({ data, sourceUrl, onReset }: { data: Result; sourceUrl: str
         const blob = await res.blob();
         // Prefer the backend-suggested filename (Content-Disposition) so
         // naming stays consistent and unique per post.
-        let filename = `tickless_${data.title || "instagram"}_${idx + 1}`;
+        let filename = `tickless_${data.title || data.platform || "download"}_${idx + 1}`;
         const cd = res.headers.get("Content-Disposition");
         if (cd) {
           const m =

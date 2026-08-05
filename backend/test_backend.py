@@ -275,3 +275,29 @@ def test_live_instagram_extraction():
 
 
 # cobalt routing tests are in test_cobalt.py and verified by integration scripts.
+
+
+def test_unsupported_url_maps_to_use_cobalt():
+    """TikTok /photo/ posts make yt-dlp raise 'Unsupported URL'. That must
+    become the use_cobalt routing signal (so we fall back to Cobalt), not a
+    generic extract_failed 502.
+
+    Code-contract test: no network, just assert the mapping exists in both
+    extract() and download_media().
+    """
+    import os as _os
+    src = open(_os.path.join(_os.path.dirname(__file__), "extractor.py")).read()
+    assert '"unsupported url" in msg' in src
+    assert '"unsupported url" in str(e).lower()' in src
+    assert src.count('ExtractionError("use_cobalt")') >= 3
+    # The classified error must be re-raised before the generic handler
+    # flattens it into extract_failed.
+    assert "except ExtractionError:" in src
+
+
+def test_main_routes_use_cobalt_to_cobalt():
+    """Both /api/extract and /api/download must fall back to Cobalt when
+    yt-dlp reports use_cobalt."""
+    import os as _os
+    src = open(_os.path.join(_os.path.dirname(__file__), "main.py")).read()
+    assert src.count('e.code != "use_cobalt"') == 2

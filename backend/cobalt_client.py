@@ -289,12 +289,18 @@ def _build_gallery_or_single(items: list[dict], url: str = "") -> dict[str, Any]
     photo_count = sum(1 for item in items if item.get("type") == "photo")
     video_count = sum(1 for item in items if item.get("type") != "photo")
 
-    # Use the Instagram post shortcode as the naming base so every file is
-    # unique per post and reads cleanly (e.g. "Instagram post DbEgdzMDK4g"),
-    # instead of an ugly "9 videos, 1 photo" count phrase.
+    # Use the post shortcode/id as the naming base so every file is unique
+    # per post and reads cleanly (e.g. "Instagram post DbEgdzMDK4g" or
+    # "TikTok post 7668704036874489108"), instead of an ugly "9 videos,
+    # 1 photo" count phrase.
     code = _ig_shortcode(url) if "instagram" in (url or "") else None
+    tt_code = None
+    if not code and "tiktok" in (url or ""):
+        tt_code = _tiktok_id(url) or _tiktok_id(_resolve_tiktok_short(url))
     if code:
         title = f"Instagram post {code}"
+    elif tt_code:
+        title = f"TikTok post {tt_code}"
     else:
         title_parts = []
         if video_count:
@@ -335,6 +341,38 @@ def _ig_shortcode(url: str) -> str | None:
         return None
     m = re.search(r"instagram\.com/(?:p|reel|tv)/([A-Za-z0-9_-]+)", url)
     return m.group(1) if m else None
+
+
+def _tiktok_id(url: str) -> str | None:
+    """Extract the TikTok post id from a /video/ or /photo/ URL for naming.
+
+    Photo posts use /photo/<id>. Short links (vt./vm.tiktok.com) carry no id,
+    so they are resolved first via `_resolve_tiktok_short`.
+    """
+    if not url:
+        return None
+    m = re.search(r"tiktok\.com/(?:@[\w.\-]+/)?(?:video|photo)/(\d+)", url)
+    return m.group(1) if m else None
+
+
+def _resolve_tiktok_short(url: str) -> str:
+    """Follow a vt./vm.tiktok.com short link to its canonical URL.
+
+    Only used to recover the post id for filenames, so any failure just
+    returns the original URL and we fall back to the generic title.
+    """
+    if not re.search(r"(?:vt|vm)\.tiktok\.com/", url or ""):
+        return url
+    try:
+        req = urllib.request.Request(
+            url,
+            method="HEAD",
+            headers={"User-Agent": "Mozilla/5.0 (compatible; Tickless/1.0)"},
+        )
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            return resp.url or url
+    except Exception:
+        return url
 
 
 def _clean_filename(filename: str) -> str:
