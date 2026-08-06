@@ -5,15 +5,29 @@ FROM python:3.12-slim
 # render.yaml sets dockerContext: . and dockerfilePath: backend/Dockerfile.
 
 # ffmpeg needed for audio/slideshow handling.
-# nodejs is REQUIRED twice over:
+# Node is REQUIRED twice over:
 #   1. yt-dlp's YouTube signature/"n"-challenge solver (without it extraction
 #      fails with "No video formats found" even with cookies), and
 #   2. Cobalt itself, which we now run as a LOCAL SIDECAR in this same
 #      container (see COBALT SIDECAR below).
+#
+# We install Node 22 from NodeSource rather than Debian's `nodejs` package.
+# python:3.12-slim is bookworm, whose nodejs is 18.20.4: EOL, older than what
+# Cobalt 11.x targets, and it does not reliably ship `corepack`, which the
+# cobalt build below needs. Pinning the major here avoids a class of build
+# breakage that would only show up on Render.
+#
 # We still deliberately do NOT install chromium. The PO-token provider is the
 # Rust port (bgutil-ytdlp-pot-provider-rs), a single static binary.
 RUN apt-get update && apt-get install -y --no-install-recommends \
-        ffmpeg nodejs npm ca-certificates curl git \
+        ffmpeg ca-certificates curl git gnupg \
+    && mkdir -p /etc/apt/keyrings \
+    && curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key \
+        | gpg --dearmor -o /etc/apt/keyrings/nodesource.gpg \
+    && echo "deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_22.x nodistro main" \
+        > /etc/apt/sources.list.d/nodesource.list \
+    && apt-get update && apt-get install -y --no-install-recommends nodejs \
+    && node --version \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
@@ -52,8 +66,12 @@ RUN pip install --no-cache-dir bgutil-ytdlp-pot-provider \
 # ---------------------------------------------------------------------------
 COPY cobalt /cobalt-build
 RUN cd /cobalt-build \
-    && corepack enable \
-    && corepack prepare pnpm@9.6.0 --activate \
+    # Install pnpm directly rather than via `corepack enable`. corepack's
+    # signature verification has broken builds before and needs network trust
+    # at build time; a pinned npm install is boring and deterministic. The
+    # version MUST match cobalt/package.json's packageManager field.
+    && npm install -g pnpm@9.6.0 \
+    && pnpm --version \
     && pnpm install --prod --frozen-lockfile \
     && pnpm deploy --filter=@imput/cobalt-api --prod /cobalt-api \
     # Cobalt's version-info reads git metadata at startup; the build context
