@@ -69,12 +69,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # Render builds this exact image. Cobalt is now compiled INTO it as a
-      # sidecar, so a broken Dockerfile means a dead deploy — catch it here
-      # rather than in production. Build context is the repo root because the
-      # image needs both backend/ and cobalt/.
+      # Render builds this exact image. Cobalt is compiled INTO it as a
+      # sidecar (vendored at backend/cobalt/), so a broken Dockerfile means a
+      # dead deploy — catch it here rather than in production. The build
+      # context MUST be backend/ (see render.yaml dockerContext: backend),
+      # because from the build's perspective the context root is backend/.
       - name: Build image
-        run: docker build -f backend/Dockerfile -t tickless-backend:ci .
+        run: docker build -f backend/Dockerfile -t tickless-backend:ci backend
 
       - name: Smoke test the container
         run: |

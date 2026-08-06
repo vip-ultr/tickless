@@ -24,9 +24,14 @@ services:
   - type: web
     name: tickless
     runtime: docker
-    # Built from the REPO ROOT: the image needs both backend/ and cobalt/.
-    dockerfilePath: backend/Dockerfile
-    dockerContext: .
+    # Built from the `backend/` directory (the build context root). The Cobalt
+    # source is vendored at backend/cobalt/ so it sits inside this context.
+    # NOTE: a recreated service in the dashboard defaults dockerContext to the
+    # directory containing the Dockerfile, which is what we want here. If you
+    # ever hand-edit these, keep dockerContext: backend and dockerfilePath:
+    # Dockerfile (NOT backend/Dockerfile).
+    dockerfilePath: Dockerfile
+    dockerContext: backend
     plan: free
     branch: main
     healthCheckPath: /api/health

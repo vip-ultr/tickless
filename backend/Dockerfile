@@ -1,8 +1,11 @@
 FROM python:3.12-slim
 
-# NOTE ON BUILD CONTEXT: this image is built from the REPO ROOT, not backend/,
-# because it needs both backend/ and cobalt/ (see COBALT SIDECAR below).
-# render.yaml sets dockerContext: . and dockerfilePath: backend/Dockerfile.
+# NOTE ON BUILD CONTEXT: this image is built from `backend/` (render.yaml sets
+# dockerContext: backend and dockerfilePath: Dockerfile). Everything the build
+# needs lives under backend/ — including backend/cobalt/, which is the Cobalt
+# source vendored into this directory so it sits inside the build context.
+# Do NOT reference `backend/...` or `cobalt/...` paths here; from the build's
+# point of view the context root IS backend/.
 
 # ffmpeg needed for audio/slideshow handling.
 # Node is REQUIRED twice over:
@@ -31,7 +34,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
-COPY backend/requirements.txt .
+COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Always pull the latest yt-dlp at build time (TikTok breaks the old one).
@@ -86,7 +89,7 @@ RUN cd /cobalt-build \
     # Drop the build tree and pnpm store; only /cobalt-api is needed at runtime.
     && rm -rf /cobalt-build /root/.cache/pnpm /root/.local/share/pnpm /pnpm
 
-COPY backend/ .
+COPY . .
 
 ENV PORT=8000
 ENV POT_PROVIDER_URL=http://127.0.0.1:4416

@@ -86,7 +86,7 @@ them removes that failure mode: there is no second service left to be asleep.
 tickless/
   frontend/   Next.js app (deploys to Vercel)
   backend/    FastAPI service + Cobalt sidecar (deploys to Render)
-  cobalt/     Cobalt source, built into the backend image
+    backend/cobalt/  Cobalt source, built into the image
   docs/       Product plan and legal posture
 ```
 
@@ -114,14 +114,14 @@ Point the frontend at your backend with `NEXT_PUBLIC_API_URL`.
 
 ### Cobalt (Instagram)
 
-Built into the backend image from `cobalt/` and started as a loopback sidecar
+Built into the backend image from `backend/cobalt/` and started as a loopback sidecar
 by `backend/start.sh`; it is not a separate Render service. The backend
 reaches it at `COBALT_URL` (`http://127.0.0.1:9000` in production).
 
 To run it locally alongside the backend:
 
 ```bash
-cd cobalt && pnpm install --prod --frozen-lockfile
+cd backend/cobalt && pnpm install --prod --frozen-lockfile
 cd api && API_URL=http://127.0.0.1:9000/ PORT=9000 node src/cobalt
 # then start the backend with COBALT_URL=http://127.0.0.1:9000
 ```

@@ -1,0 +1,24 @@
+# Build context is `backend/` (see render.yaml dockerContext: backend).
+# Exclude local-only artifacts so the context stays small and we never ship a
+# stale virtualenv or node_modules into the image (Python deps come from
+# requirements.txt; Cobalt's deps are reinstalled by pnpm in the build).
+
+# Local Python environment
+.venv
+venv
+__pycache__
+*.pyc
+.pytest_cache
+.ruff_cache
+.mypy_cache
+
+# Cobalt dependency tree (reinstalled in-image)
+cobalt/node_modules
+
+# Local secrets must never enter the image; Render injects env vars at runtime
+.env
+.env.*
+
+# Local dev / test artifacts
+*.log
+.DS_Store
