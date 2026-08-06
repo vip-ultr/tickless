@@ -301,3 +301,31 @@ def test_main_routes_use_cobalt_to_cobalt():
     import os as _os
     src = open(_os.path.join(_os.path.dirname(__file__), "main.py")).read()
     assert src.count('e.code != "use_cobalt"') == 2
+
+
+def test_health_cobalt_reports_down_when_sidecar_unreachable(monkeypatch):
+    """The sidecar can die while the backend stays up. /api/health still says
+    "ok" in that state, so Instagram would break silently — hence a dedicated
+    probe. Port 9 (discard) stands in for a dead sidecar.
+    """
+    from fastapi.testclient import TestClient
+
+    import main as main_mod
+
+    monkeypatch.setenv("COBALT_URL", "http://127.0.0.1:9")
+    with TestClient(main_mod.app) as c:
+        r = c.get("/api/health/cobalt")
+    assert r.status_code == 503
+    assert r.json()["status"] == "down"
+
+
+def test_health_cobalt_requires_configuration(monkeypatch):
+    from fastapi.testclient import TestClient
+
+    import main as main_mod
+
+    monkeypatch.setenv("COBALT_URL", "")
+    with TestClient(main_mod.app) as c:
+        r = c.get("/api/health/cobalt")
+    assert r.status_code == 503
+    assert "not configured" in r.json()["error"]

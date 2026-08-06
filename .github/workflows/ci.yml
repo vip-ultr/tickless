@@ -36,3 +36,72 @@ jobs:
 
       - name: Lint
         run: pnpm lint
+
+  backend:
+    name: Backend tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+          pip install pytest
+
+      - name: Run tests
+        # The two live tests hit the real TikTok/Instagram network and are
+        # deselected here; they are flaky in CI by nature, not by defect.
+        run: |
+          pytest -q \
+            --deselect test_backend.py::test_live_extraction \
+            --deselect test_backend.py::test_live_instagram_extraction
+
+  docker:
+    name: Backend image builds (backend + cobalt sidecar)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Render builds this exact image. Cobalt is now compiled INTO it as a
+      # sidecar, so a broken Dockerfile means a dead deploy — catch it here
+      # rather than in production. Build context is the repo root because the
+      # image needs both backend/ and cobalt/.
+      - name: Build image
+        run: docker build -f backend/Dockerfile -t tickless-backend:ci .
+
+      - name: Smoke test the container
+        run: |
+          docker run -d --name tickless-ci -p 8000:8000 \
+            -e PORT=8000 \
+            -e COBALT_PORT=9000 \
+            -e COBALT_URL=http://127.0.0.1:9000 \
+            -e API_URL=http://127.0.0.1:9000/ \
+            tickless-backend:ci
+
+          # start.sh waits for the sidecar before uvicorn binds, so a healthy
+          # /api/health already implies cobalt came up. Allow for image boot.
+          for i in $(seq 1 60); do
+            if curl -fsS -m 3 http://127.0.0.1:8000/api/health >/dev/null 2>&1; then
+              echo "backend up after ${i}s"; break
+            fi
+            if [ "$i" = "60" ]; then
+              echo "backend never came up"; docker logs tickless-ci; exit 1
+            fi
+            sleep 1
+          done
+
+          echo "--- /api/health ---"
+          curl -fsS http://127.0.0.1:8000/api/health
+
+          # The whole point of the merge: cobalt must be alive in-container.
+          echo "--- /api/health/cobalt ---"
+          curl -fsS http://127.0.0.1:8000/api/health/cobalt
+
+          docker logs tickless-ci

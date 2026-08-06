@@ -36,25 +36,23 @@ def _headers() -> dict[str, str]:
 def _warm_up_cobalt(cobalt_url: str) -> bool:
     """Poll Cobalt until it responds. Returns True if it came up.
 
-    Render's free tier spins Cobalt down after ~15 minutes idle. We poll
-    until we get *any* HTTP response (connection refused / timeout = still
-    cold), up to a budget that exceeds the ~23s cold-boot time.
+    Cobalt now runs as a LOOPBACK SIDECAR inside this same container
+    (backend/start.sh), so in production it is already listening before
+    uvicorn accepts its first request and this poll returns immediately.
 
-    IMPORTANT (measured Aug 2026): from INSIDE Render this poll usually
-    CANNOT wake Cobalt at all. Render routes service-to-service traffic
-    internally, straight to the stopped container, which refuses the
-    connection instantly rather than going through the public proxy that
-    boots it. Evidence: warm backend + cold Cobalt returned 502 after 68s
-    (= 55s budget + 12s of retry backoff, i.e. every probe failing
-    INSTANTLY, not timing out) and Cobalt's reported startTime showed it
-    never booted during the attempt. The same code run from an external
-    host woke it in ~27s.
+    It is kept for two reasons: local development, where Cobalt may be
+    started separately or point at a remote instance, and defence in depth
+    if the sidecar is restarting.
 
-    The actual fix is therefore the EXTERNAL pinger in
-    .github/workflows/keep-cobalt-warm.yml. This poll is kept because it
-    still helps when Cobalt is mid-boot (started by the pinger or another
-    request), and the return value lets the caller emit an honest
-    "warming up" message instead of a bare failure.
+    HISTORY (measured Aug 2026): Cobalt used to be a SEPARATE Render free
+    service, and from INSIDE Render this poll could not wake it at all.
+    Render routes service-to-service traffic internally, straight to the
+    stopped container, which refuses the connection instantly rather than
+    going through the public proxy that boots it. Evidence: warm backend +
+    cold Cobalt failed in 13s (= retry backoff only, every probe failing
+    INSTANTLY rather than timing out) while the identical request from an
+    external host saw HTTP 000 for ~4 probes then 200 at ~15s. Co-locating
+    the sidecar removes that failure mode by construction.
     """
     deadline = time.monotonic() + COBALT_WARMUP_BUDGET
     while True:
@@ -319,7 +317,12 @@ def _build_gallery_or_single(items: list[dict], url: str = "") -> dict[str, Any]
         "title": title[:200],
         "author": "",
         "duration": None,
-        "thumbnail": thumbs[0] if thumbs else primary.get("thumb"),
+        # Thumbnails are the ONLY Cobalt URL the browser loads directly
+        # (media itself is proxied server-side by _proxy_remote_media). With
+        # Cobalt running as a loopback sidecar its tunnel URLs are
+        # 127.0.0.1, which is this container, not the user's machine. Serving
+        # one would render a broken image, so drop non-public thumbnails.
+        "thumbnail": _public_thumb(thumbs[0] if thumbs else primary.get("thumb")),
         "video_url": primary["url"],
         "audio_url": None,
         "width": primary.get("width"),
@@ -341,6 +344,21 @@ def _ig_shortcode(url: str) -> str | None:
         return None
     m = re.search(r"instagram\.com/(?:p|reel|tv)/([A-Za-z0-9_-]+)", url)
     return m.group(1) if m else None
+
+
+def _public_thumb(url: str | None) -> str | None:
+    """Drop thumbnail URLs the user's browser cannot reach.
+
+    Cobalt now runs as a loopback sidecar, so its tunnel URLs point at
+    127.0.0.1 (this container). A thumbnail is the one Cobalt URL the browser
+    loads directly, so a loopback one would render broken. Public CDN
+    thumbnails (Instagram/TikTok) are passed through untouched.
+    """
+    if not url:
+        return None
+    if re.match(r"https?://(?:127\.0\.0\.1|localhost|0\.0\.0\.0|\[::1\])(?::\d+)?/", url):
+        return None
+    return url
 
 
 def _tiktok_id(url: str) -> str | None:

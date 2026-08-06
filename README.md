@@ -60,13 +60,21 @@ work. That keeps the free hosting tiers comfortably within their limits.
 
 ## Architecture
 
+Cobalt runs as a **sidecar inside the backend container**, not as a separate
+service. On Render's free tier a second service could not work: Render routes
+service-to-service traffic internally, straight to the spun-down container,
+which refuses the connection instantly instead of going through the public
+proxy that boots it. The backend therefore could never wake Cobalt, and
+Instagram only worked for ~15 minutes after a manual redeploy. Co-locating
+them removes that failure mode: there is no second service left to be asleep.
+
 ```
- Browser          Vercel (Next.js)              Render (FastAPI)
+ Browser          Vercel (Next.js)              Render (one container)
    user   ---fetch--->   frontend    ---POST /api/extract--->   backend
                                                         |
                                                         +-- yt-dlp    (TikTok)
                                                         +-- Cobalt    (Instagram)
-                                                          |
+                                                          |   via 127.0.0.1:9000
                                                           v
                                               TikTok / Instagram CDN
                                                    clean media -> device
@@ -77,8 +85,8 @@ work. That keeps the free hosting tiers comfortably within their limits.
 ```
 tickless/
   frontend/   Next.js app (deploys to Vercel)
-  backend/    FastAPI service (deploys to Render)
-  cobalt/     Self-hosted Cobalt instance (deploys to Render)
+  backend/    FastAPI service + Cobalt sidecar (deploys to Render)
+  cobalt/     Cobalt source, built into the backend image
   docs/       Product plan and legal posture
 ```
 
@@ -106,15 +114,25 @@ Point the frontend at your backend with `NEXT_PUBLIC_API_URL`.
 
 ### Cobalt (Instagram)
 
-Deploys from `cobalt/` via the Render blueprint (`render.yaml`). See
-`backend/README.md` for the integration details.
+Built into the backend image from `cobalt/` and started as a loopback sidecar
+by `backend/start.sh`; it is not a separate Render service. The backend
+reaches it at `COBALT_URL` (`http://127.0.0.1:9000` in production).
+
+To run it locally alongside the backend:
+
+```bash
+cd cobalt && pnpm install --prod --frozen-lockfile
+cd api && API_URL=http://127.0.0.1:9000/ PORT=9000 node src/cobalt
+# then start the backend with COBALT_URL=http://127.0.0.1:9000
+```
 
 ## API
 
 | Method | Route | Purpose |
 | --- | --- | --- |
 | `GET` | `/api/health` | Liveness |
-| `GET` | `/api/health/extract` | Deep check: runs a real extraction |
+| `GET` | `/api/health/extract` | Deep check: runs a real yt-dlp extraction |
+| `GET` | `/api/health/cobalt` | Cobalt sidecar liveness (Instagram path) |
 | `POST` | `/api/extract` | Extract clean media (auth + rate limited) |
 | `GET` | `/api/download` | Stream the clean file to the browser |
 

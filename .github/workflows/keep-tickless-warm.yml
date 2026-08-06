@@ -1,0 +1,53 @@
+name: keep-tickless-warm
+
+# Render free-tier services spin down after ~15 minutes idle, and a cold boot
+# costs the user ~15-25s on their first request.
+#
+# Cobalt now runs as a sidecar INSIDE the backend container, so there is only
+# one service left to keep warm. (Previously Cobalt was a separate service and
+# this ping was load-bearing: the backend could not wake it, because Render
+# routes service-to-service traffic internally, straight to the stopped
+# container, which refuses the connection instantly instead of going through
+# the public proxy that boots it. Co-locating removed that failure mode.)
+#
+# This ping is now a nice-to-have latency optimisation rather than a
+# correctness fix: warming the backend also warms Cobalt, since they share a
+# container.
+#
+# Free-hours budget: Render gives 750 instance-hours/month for the whole
+# account. One always-on service burns ~730, so this stays windowed:
+# 08:00-21:59 UTC (09:00-22:59 WAT), 14h/day, about 420h/month.
+
+on:
+  schedule:
+    - cron: "*/10 8-21 * * *"
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Wake Tickless (backend + cobalt sidecar)
+        run: |
+          # -m 180: a cold boot must be HELD open for the whole boot, and this
+          # container now starts cobalt too. Do not shorten below the boot time.
+          code=$(curl -s -o /tmp/body -m 180 -w '%{http_code}' \
+            https://tickless.onrender.com/api/health)
+          echo "HTTP $code"
+          head -c 300 /tmp/body || true
+          echo
+          test "$code" = "200"
+
+      - name: Verify the cobalt sidecar is serving
+        run: |
+          # /api/health/cobalt probes the sidecar over loopback, so this
+          # catches "backend up but cobalt dead" — the exact silent state that
+          # used to produce Instagram 502s. (NOT /api/health/extract: that one
+          # runs a TikTok yt-dlp extraction and never touches cobalt.)
+          code=$(curl -s -o /tmp/x -m 60 -w '%{http_code}' \
+            https://tickless.onrender.com/api/health/cobalt)
+          echo "HTTP $code"
+          head -c 300 /tmp/x || true
+          echo
+          test "$code" = "200"

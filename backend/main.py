@@ -218,6 +218,43 @@ async def health_extract():
                                                        "youtube_cookie_configured": yt_cookie_cfg})
 
 
+@app.get("/api/health/cobalt")
+async def health_cobalt():
+    """Liveness probe for the Cobalt SIDECAR (loopback, same container).
+
+    Cobalt runs inside this container (see backend/start.sh), so if it is
+    dead, Instagram breaks while every other endpoint looks fine. That exact
+    silent state used to produce Instagram 502s back when Cobalt was a
+    separate Render service, so it gets its own probe.
+
+    Deliberately does NOT run an extraction: this must stay fast and must not
+    depend on Instagram being reachable. It only answers "is the sidecar
+    listening and responding".
+    """
+    import json as _json
+    import urllib.request
+
+    cobalt_url = os.getenv("COBALT_URL", "").rstrip("/")
+    if not cobalt_url:
+        return JSONResponse(
+            status_code=503,
+            content={"status": "down", "error": "COBALT_URL not configured"},
+        )
+    try:
+        with urllib.request.urlopen(f"{cobalt_url}/", timeout=10) as resp:
+            body = _json.loads(resp.read().decode("utf-8", "replace"))
+        return {
+            "status": "ok",
+            "cobalt_version": (body.get("cobalt") or {}).get("version"),
+            "url": cobalt_url,
+        }
+    except Exception as e:
+        return JSONResponse(
+            status_code=503,
+            content={"status": "down", "url": cobalt_url, "error": type(e).__name__},
+        )
+
+
 @app.get("/api/health/config")
 async def health_config():
     """Config-only probe: reports whether YouTube cookies are wired up, without

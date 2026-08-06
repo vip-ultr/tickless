@@ -224,3 +224,18 @@ def test_tiktok_id_parses_photo_and_video_urls():
     )
     # Unresolved short links carry no id.
     assert mod._tiktok_id("https://vt.tiktok.com/ZS49Ro7Am/") is None
+
+
+def test_loopback_thumbnails_are_stripped():
+    """With cobalt as a loopback sidecar, its tunnel URLs are 127.0.0.1 —
+    this container, not the user's browser. The thumbnail is the ONLY cobalt
+    URL the browser loads directly (media is proxied server-side), so a
+    loopback one must be dropped or it renders as a broken image.
+    """
+    mod = _fresh_module()
+    assert mod._public_thumb("http://127.0.0.1:9000/tunnel?id=x") is None
+    assert mod._public_thumb("http://localhost:9000/tunnel?id=x") is None
+    assert mod._public_thumb(None) is None
+    # Public CDN thumbnails must survive untouched.
+    keep = "https://scontent.cdninstagram.com/v/t51/thumb.jpg"
+    assert mod._public_thumb(keep) == keep

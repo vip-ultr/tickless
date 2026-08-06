@@ -1,24 +1,45 @@
-# Render blueprint for the Cobalt service.
+# Render blueprint for Tickless.
+#
+# ONE service. Cobalt used to be a second free-tier service
+# (tickless-cobalt), but that architecture could not work: Render routes
+# service-to-service traffic INTERNALLY, straight to the spun-down container,
+# which refuses the connection instantly rather than going through the public
+# proxy that boots it. So the backend could never wake Cobalt on its own and
+# Instagram only worked for ~15 minutes after a manual redeploy.
+#
+# Measured (Aug 2026):
+#   backend -> cold Cobalt  : failed in 13s (instant connection refusals)
+#   outside -> cold Cobalt  : HTTP 000 for ~4 probes, then 200 at ~15s
+#   backend -> warm Cobalt  : 200 in 1.8s
+#
+# Cobalt now runs as a sidecar inside the backend container (see
+# backend/Dockerfile + backend/start.sh), reached over 127.0.0.1. There is no
+# second service left to be asleep. Combined memory measured at ~213-231MB
+# peak under 3 concurrent downloads, against the 512MB free-tier cap.
 #
 # Setup in Render dashboard:
 #   New + -> Blueprint -> Connect repo vip-ultr/tickless
-#   Render will detect render.yaml and create:
-#     tickless-cobalt  (Docker service from ./cobalt)
-#     tickless         (existing Python service from backend/)
-#
-# If Render auto-creates a service with root Directory "/",
-# edit it and set Dockerfile Path to: cobalt/Dockerfile
-# and Build Context to: cobalt
 #
 services:
-  - type: docker
-    name: tickless-cobalt
-    dockerfilePath: cobalt/Dockerfile
-    dockerContext: cobalt
+  - type: web
+    name: tickless
+    runtime: docker
+    # Built from the REPO ROOT: the image needs both backend/ and cobalt/.
+    dockerfilePath: backend/Dockerfile
+    dockerContext: .
     plan: free
     branch: main
+    healthCheckPath: /api/health
     envVars:
-      - key: API_URL
-        value: https://tickless-cobalt.onrender.com/
       - key: PORT
+        value: 8000
+      # Cobalt sidecar, loopback only. API_URL must match the address the
+      # sidecar serves tunnels on or tunnel links come back malformed.
+      - key: COBALT_PORT
         value: 9000
+      - key: COBALT_URL
+        value: http://127.0.0.1:9000
+      - key: API_URL
+        value: http://127.0.0.1:9000/
+      # Secrets (TICKLESS_API_KEY, IG_SESSIONID, YOUTUBE_COOKIES...) stay
+      # configured in the Render dashboard, not here.
