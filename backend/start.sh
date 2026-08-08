@@ -28,6 +28,16 @@ COBALT_PID=$!
 
 cd /app
 
+# The backend MUST reach the sidecar over loopback. Force these regardless of
+# any stale dashboard value (e.g. the old https://tickless-cobalt.onrender.com
+# from when Cobalt was a separate service). A wrong COBALT_URL here is exactly
+# what produced 503s after the merge: the sidecar is up on 127.0.0.1:9000 but
+# the backend probes the dead external URL. Exporting the correct value makes
+# the container self-correct even if the dashboard env var is stale.
+export COBALT_PORT="${COBALT_PORT:-9000}"
+export COBALT_URL="http://127.0.0.1:${COBALT_PORT}"
+export API_URL="http://127.0.0.1:${COBALT_PORT}/"
+
 # Wait for the sidecar to actually listen before accepting traffic, so the
 # first user request never races the boot. Cobalt starts in ~1s locally; 30s
 # is a generous ceiling.
