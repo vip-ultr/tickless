@@ -1,3 +1,9 @@
-allowBuilds:
-  sharp: true
-  unrs-resolver: true
+packages:
+  - '.'
+
+# Allow these dependencies to run build/postinstall scripts (e.g. sharp's
+# native binary). Mirrors package.json's pnpm.onlyBuiltDependencies so both
+# local installs and Vercel succeed without prompting.
+onlyBuiltDependencies:
+  - sharp
+  - unrs-resolver

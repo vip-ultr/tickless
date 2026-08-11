@@ -53,7 +53,7 @@ ERROR_MESSAGES = {
     # Photo posts are now served via Cobalt (TikTok /photo/ and Instagram
     # carousels), so this only fires if that fallback itself found nothing.
     "slideshow": "We could not find any photos or video at that link.",
-    "no_media": "We could not find a downloadable video at that link.",
+    "no_media": "Instagram is rate-limiting downloads from this server's IP right now, which affects photo posts. Reels usually still work. This is a known Instagram limitation for self-hosted instances (the official cobalt.tools works because it uses proxies). It may clear up on its own, or a proxy/different IP is the real fix.",
     "extract_failed": "Something went wrong on our side. Give it another try in a moment.",
     "extractor_down": "Our Instagram service is temporarily unavailable. Try again in a few minutes.",
     "extractor_waking": "Our Instagram service is starting up. Give it about 30 seconds and try again.",
@@ -295,7 +295,21 @@ async def api_extract(
             # Run in the threadpool: a cold-start warmup can block for up to
             # COBALT_WARMUP_BUDGET (~55s), which would otherwise freeze the
             # entire event loop (TikTok extraction, health checks, etc.).
-            data = await run_in_threadpool(cobalt_extract, url)
+            try:
+                data = await run_in_threadpool(cobalt_extract, url)
+            except ExtractionError as e:
+                # Photos/carousels need an authenticated/non-rate-limited IP;
+                # Cobalt returns no_media (fetch.empty) when Instagram blocks
+                # the fetch. yt-dlp can fetch the image when a valid cookie is
+                # wired up, so fall back to it instead of failing.
+                if e.code != "no_media":
+                    raise
+                try:
+                    data = await run_in_threadpool(extract, url)
+                except Exception:
+                    # yt-dlp raises DownloadError (not ExtractionError) and
+                    # hits the same Instagram block; surface honest message.
+                    raise ExtractionError("no_media")
         else:
             try:
                 data = await run_in_threadpool(extract, url)
@@ -363,7 +377,25 @@ async def api_download(
         cannot handle. Cobalt URLs are signed/tunnel links, so they must be
         proxied through us rather than handed to the browser.
         """
-        cdata = await run_in_threadpool(cobalt_extract, clean)
+        try:
+            cdata = await run_in_threadpool(cobalt_extract, clean)
+        except ExtractionError as e:
+            # Instagram photo posts need an authenticated/non-rate-limited
+            # IP; Cobalt returns no_media when Instagram blocks the fetch.
+            # yt-dlp hits the same wall from this IP, but if the IP ever
+            # recovers (or a valid cookie is wired up) it can pull the
+            # image, so fall back to it instead of failing outright.
+            if e.code != "no_media":
+                raise
+            try:
+                path, title, uploader = await run_in_threadpool(
+                    download_media, clean, tmpdir, "video"
+                )
+                return path, title, uploader
+            except Exception:
+                # yt-dlp raises DownloadError (not ExtractionError) and hits
+                # the same Instagram block; surface the honest no_media msg.
+                raise HTTPException(status_code=400, detail=ERROR_MESSAGES["no_media"])
         gallery = cdata.get("gallery") or []
         safe_index = max(0, min(int(gallery_index or 0), len(gallery) - 1)) if gallery else 0
         primary_url = gallery[safe_index] if gallery else cdata.get("video_url")
