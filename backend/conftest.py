@@ -19,6 +19,7 @@ import sys
 
 import pytest
 
+
 _LOCAL_EXTRACTOR_PATH = os.path.join(os.path.dirname(__file__), "extractor.py")
 
 
@@ -58,3 +59,14 @@ def _repin_local_extractor():
     yield
     if sys.modules.get("extractor") is not _LOCAL_EXTRACTOR:
         sys.modules["extractor"] = _LOCAL_EXTRACTOR
+
+
+@pytest.fixture
+def client():
+    """FastAPI TestClient with no API key required (local-dev style)."""
+    from fastapi.testclient import TestClient
+
+    import main as main_mod
+
+    with TestClient(main_mod.app) as c:
+        yield c

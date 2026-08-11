@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Clip feature: a standalone `/clip` page that turns one source video into many
+  manual segments, plus audio-only extraction. Backend endpoints `POST /api/clip/upload`
+  (parks an uploaded source, returns a token + duration) and `POST /api/clip`
+  (trims a [start, end] segment, video or audio-only, streamed back). Source is
+  a pasted TikTok/Instagram/YouTube link (reuses the existing yt-dlp path) or a
+  local upload (max 500 MB). Nothing is persisted; clips are trimmed lazily on
+  download and the source temp dir is purged after 1h by a background sweep.
+- Navbar now links to `/clip`.
+
 ### Fixed
 - Instagram cold-start 502: the backend no longer fire-and-forgets a single ping
   to the Cobalt service. `cobalt_client._warm_up_cobalt()` now POLLS Cobalt until

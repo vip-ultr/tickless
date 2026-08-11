@@ -14,7 +14,7 @@ import unicodedata
 from urllib.parse import quote
 
 from dotenv import load_dotenv
-from fastapi import FastAPI, Header, HTTPException, Request
+from fastapi import FastAPI, File, Header, HTTPException, Request, UploadFile
 from fastapi.concurrency import run_in_threadpool
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -29,6 +29,14 @@ from cobalt_client import cobalt_extract
 from validation import normalize_and_validate
 from ads import router as ads_router
 from analytics import router as analytics_router, record_download
+from clipper import (
+    park_upload,
+    source_path_for_token,
+    trim_segment,
+    ffprobe_duration,
+)
+import clipper
+import secrets
 
 load_dotenv()
 
@@ -73,6 +81,24 @@ app.add_middleware(
 
 app.include_router(ads_router)
 app.include_router(analytics_router)
+
+
+@app.on_event("startup")
+def _start_clip_cleanup_sweep():
+    """Periodically purge parked clip uploads older than 1h (free-tier safe)."""
+    import threading
+
+    def _sweep_loop():
+        while True:
+            try:
+                clipper.sweep_expired_uploads()
+            except Exception:
+                logging.exception("clip upload sweep failed")
+            # Match my-video-clipper's 30-min cadence.
+            threading.Event().wait(30 * 60)
+
+    t = threading.Thread(target=_sweep_loop, daemon=True)
+    t.start()
 
 
 @app.exception_handler(RateLimitExceeded)
@@ -492,3 +518,171 @@ async def api_download(
             "Content-Length": str(os.path.getsize(path)),
         },
     )
+
+
+# ===========================================================================
+# Clip endpoints (manual trim + audio-only extraction, Option B integration)
+# ===========================================================================
+
+CLIP_MAX_UPLOAD_BYTES = int(os.getenv("CLIP_MAX_UPLOAD_BYTES", str(500 * 1024 * 1024)))
+
+
+class ClipRequest(BaseModel):
+    # Either a parked upload token (upload flow) or a source URL (link flow).
+    token: str | None = None
+    source_url: str | None = None
+    start: float
+    end: float
+    audio_only: bool = False
+
+
+@limiter.limit("10/minute")
+@app.post("/api/clip/upload")
+async def api_clip_upload(
+    request: Request,
+    file: UploadFile = File(...),
+    x_tickless_key: str | None = Header(default=None),
+):
+    """Park an uploaded source video in a temp dir; return a token + duration.
+
+    The source stays on Render's ephemeral disk only (see clipper.CLIP_UPLOAD_ROOT)
+    and is deleted after its clips are produced or after the TTL sweep. Nothing
+    is persisted to Supabase. Matches the product's "we keep nothing" promise.
+    """
+    _require_key(x_tickless_key)
+    content_type = file.content_type or ""
+    if not content_type.startswith("video/"):
+        raise HTTPException(status_code=400, detail="Upload a video file.")
+    # Read with a hard size cap so a huge upload cannot fill the free tier disk.
+    data = await file.read(CLIP_MAX_UPLOAD_BYTES + 1)
+    if len(data) > CLIP_MAX_UPLOAD_BYTES:
+        raise HTTPException(
+            status_code=413,
+            detail=f"File too large (max {CLIP_MAX_UPLOAD_BYTES // (1024 * 1024)} MB).",
+        )
+    if len(data) == 0:
+        raise HTTPException(status_code=400, detail="Empty file.")
+
+    token = secrets.token_urlsafe(16)
+    ext = (file.filename or "upload.mp4").rsplit(".", 1)[-1].lower()
+    if ext not in ("mp4", "webm", "mkv", "mov", "avi"):
+        ext = "mp4"
+    d = park_upload(token, file.filename or "upload")
+    src = os.path.join(d, f"source.{ext}")
+    with open(src, "wb") as f:
+        f.write(data)
+
+    duration = ffprobe_duration(src)
+    return {"token": token, "duration": duration, "title": file.filename or "uploaded video"}
+
+
+@limiter.limit("10/minute")
+@app.post("/api/clip")
+async def api_clip(
+    request: Request,
+    body: ClipRequest,
+    x_tickless_key: str | None = Header(default=None),
+):
+    """Trim one segment from a source and stream it back. Lazy delivery: the
+    source is trimmed on click; the segment temp file is removed after stream.
+
+    Source is resolved from `token` (uploaded) or `source_url` (fetched via the
+    existing yt-dlp path). `audio_only` yields an mp3.
+    """
+    _require_key(x_tickless_key)
+
+    # Fail fast on an invalid segment before any download/ffmpeg work.
+    try:
+        body.start, body.end = clipper._clamp_segment(body.start, body.end)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    if body.token and body.source_url:
+        raise HTTPException(status_code=400, detail="Provide a token or a source_url, not both.")
+    if not body.token and not body.source_url:
+        raise HTTPException(status_code=400, detail="Provide a token or a source_url.")
+
+    # Resolve the source file (download to a temp dir if a URL was given).
+    workdir = tempfile.mkdtemp(prefix="tickless-clip-")
+    src: str | None = None
+    source_title = "tickless-clip"
+    cleanup_src = False
+    try:
+        if body.token:
+            src = source_path_for_token(body.token)
+            if not src:
+                raise HTTPException(status_code=404, detail="Upload not found or expired. Re-upload the video.")
+        else:
+            # Reuse the verified download path: yt-dlp for TikTok/YouTube,
+            # Cobalt fallback for TikTok photo posts. Instagram is not a clip
+            # source here (it is rate-limited from this IP).
+            try:
+                clean, platform = normalize_and_validate(body.source_url or "")
+            except ValueError:
+                raise HTTPException(status_code=400, detail=ERROR_MESSAGES["unsupported"])
+            try:
+                src, source_title, _ = await run_in_threadpool(
+                    download_media, clean, workdir, "video"
+                )
+            except ExtractionError as e:
+                if e.code != "use_cobalt":
+                    raise HTTPException(
+                        status_code=502,
+                        detail=ERROR_MESSAGES.get(e.code, ERROR_MESSAGES["extract_failed"]),
+                    )
+                # TikTok photo post: no video stream to clip.
+                raise HTTPException(status_code=400, detail=ERROR_MESSAGES["slideshow"])
+            except HTTPException:
+                raise
+            except Exception:
+                logging.exception("clip download failed for %s", body.source_url)
+                raise HTTPException(status_code=502, detail=ERROR_MESSAGES["extract_failed"])
+            cleanup_src = True
+
+        if not src or not os.path.isfile(src):
+            raise HTTPException(status_code=502, detail=ERROR_MESSAGES["no_media"])
+
+        ext = "mp3" if body.audio_only else "mp4"
+        out_path = os.path.join(workdir, f"clip.{ext}")
+        try:
+            await run_in_threadpool(
+                trim_segment, src, body.start, body.end, out_path, body.audio_only
+            )
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e))
+        except RuntimeError as e:
+            logging.exception("ffmpeg trim failed")
+            raise HTTPException(status_code=502, detail=f"Could not create the clip: {e}")
+
+        if not os.path.isfile(out_path):
+            raise HTTPException(status_code=502, detail=ERROR_MESSAGES["extract_failed"])
+
+        media_type = "audio/mpeg" if body.audio_only else "video/mp4"
+        # build_download_filename appends " - Tickless" itself, so pass the raw
+        # source title as the title; the per-clip label comes from the caller's
+        # editable filename on the frontend, not here.
+        utf8_name, ascii_name = build_download_filename(source_title, "", ext)
+
+        def stream_and_cleanup():
+            try:
+                with open(out_path, "rb") as f:
+                    while chunk := f.read(64 * 1024):
+                        yield chunk
+            finally:
+                # Remove the whole workdir (source + segment) after streaming.
+                shutil.rmtree(workdir, ignore_errors=True)
+
+        return StreamingResponse(
+            stream_and_cleanup(),
+            media_type=media_type,
+            headers={
+                "Content-Disposition": (
+                    f'attachment; filename="{ascii_name}"; '
+                    f"filename*=UTF-8''{quote(utf8_name)}"
+                ),
+                "Content-Length": str(os.path.getsize(out_path)),
+            },
+        )
+    except HTTPException:
+        shutil.rmtree(workdir, ignore_errors=True)
+        raise

@@ -296,11 +296,11 @@ def test_unsupported_url_maps_to_use_cobalt():
 
 
 def test_main_routes_use_cobalt_to_cobalt():
-    """Both /api/extract and /api/download must fall back to Cobalt when
-    yt-dlp reports use_cobalt."""
+    """/api/extract, /api/download, and /api/clip must fall back to Cobalt when
+    yt-dlp reports use_cobalt (TikTok photo posts)."""
     import os as _os
     src = open(_os.path.join(_os.path.dirname(__file__), "main.py")).read()
-    assert src.count('e.code != "use_cobalt"') == 2
+    assert src.count('e.code != "use_cobalt"') == 3
 
 
 def test_health_cobalt_reports_down_when_sidecar_unreachable(monkeypatch):

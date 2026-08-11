@@ -2,12 +2,13 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { Menu, X, Home, CircleHelp, Info } from "lucide-react";
+import { Menu, X, Home, CircleHelp, Info, Scissors } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
 import { Wordmark } from "./Wordmark";
 
 const SHEET_LINKS = [
   { href: "/", label: "Home", desc: "Paste a link, get the clean video", icon: Home },
+  { href: "/clip", label: "Clip", desc: "Trim a video into clips", icon: Scissors },
   { href: "/faq", label: "FAQ", desc: "Questions, answered", icon: CircleHelp },
   { href: "/about", label: "About", desc: "What Tickless is and who builds it", icon: Info },
 ];
