@@ -78,8 +78,7 @@ export function Navbar() {
               onClick={() => setOpen(false)}
             />
             <motion.div
-              className="glass-strong fixed inset-x-0 bottom-0 z-50 rounded-t-3xl px-5 pb-10 pt-3 md:hidden"
-              style={{ height: "52vh" }}
+              className="glass-strong fixed inset-x-0 bottom-0 z-50 flex max-h-[85vh] flex-col rounded-t-3xl px-5 pb-10 pt-3 md:hidden"
               initial={{ y: "100%" }}
               animate={{ y: 0 }}
               exit={{ y: "100%" }}
@@ -103,7 +102,7 @@ export function Navbar() {
                 </button>
               </div>
 
-              <div className="mt-4 flex flex-col gap-2">
+              <div className="mt-4 flex flex-col gap-2 overflow-y-auto">
                 {SHEET_LINKS.map((l) => (
                   <Link
                     key={l.href}

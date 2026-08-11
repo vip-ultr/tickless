@@ -83,3 +83,16 @@ Dockerfile: NO change (ffmpeg already installed). start.sh: NO change.
 2. Frontend `/clip` route + ClipEditor + Navbar link. [DONE]
 3. CI green (build/lint/test/docker) + push. [DONE]
 4. (Optional later) eager-generation mode, SRT captions.
+
+## Bug fixes (post-launch)
+- Download did nothing: the frontend used fetch->blob->click, which silently
+  fails because the click is outside the user gesture. Fixed by switching
+  /api/clip to also accept GET (query params) and rendering the Download
+  buttons as native <a href> links (same proven pattern as the home
+  Downloader). The backend now accepts the API key via Header OR ?key= on GET
+  (plain <a href> navigation cannot set headers). Verified end-to-end against a
+  live server: GET /api/clip returns Content-Disposition: attachment and a
+  valid trimmed MP4.
+- Mobile slide nav was fixed height (52vh) with no scroll, so the added "Clip"
+  link got cut off. Changed to max-h-[85vh] + overflow-y-auto so it sizes to
+  content and scrolls on small screens.

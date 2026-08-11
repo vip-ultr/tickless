@@ -199,43 +199,32 @@ export function ClipEditor() {
     setClips((c) => c.filter((x) => x.id !== id));
   }
 
-  // ── download (lazy) ───────────────────────────────────────────────────────
-  async function downloadClip(clip: Clip) {
-    if (!source) return;
-    const body: Record<string, unknown> = {
-      start: clip.start,
-      end: clip.end,
-      audio_only: clip.audioOnly,
-    };
-    if (source.kind === "upload") body.token = source.token;
-    else body.source_url = source.url;
-
-    const res = await fetch(`${API_URL}/api/clip`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", ...authHeader },
-      body: JSON.stringify(body),
+  // ── download (lazy, via native anchor so the browser actually saves) ──────
+  // The earlier fetch->blob->click approach silently failed: after `await`, the
+  // programmatic click is no longer in a user-gesture context, so the browser
+  // suppresses the download. A native <a href> (like the home Downloader) works.
+  function clipHref(clip: Clip): string {
+    if (!source) return "#";
+    const params = new URLSearchParams({
+      start: String(clip.start),
+      end: String(clip.end),
+      audio_only: String(clip.audioOnly),
     });
-    if (!res.ok) {
-      const b = await res.json().catch(() => ({}));
-      alert(b.detail || "Could not create that clip.");
-      return;
-    }
-    const blob = await res.blob();
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = clip.filename;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    setTimeout(() => URL.revokeObjectURL(url), 60000);
+    if (source.kind === "upload") params.set("token", source.token || "");
+    else params.set("source_url", source.url || "");
+    if (key) params.set("key", key);
+    return `${API_URL}/api/clip?${params.toString()}`;
   }
 
-  async function downloadAll() {
-    for (const clip of clips) {
-      await downloadClip(clip);
-      await new Promise((r) => setTimeout(r, 300));
-    }
+  function downloadAll() {
+    if (!source) return;
+    // Click each clip's native download anchor in sequence.
+    const anchors = Array.from(
+      document.querySelectorAll<HTMLAnchorElement>("[data-clip-dl]"),
+    );
+    anchors.forEach((a, i) => {
+      setTimeout(() => a.click(), i * 400);
+    });
   }
 
   // ── render ─────────────────────────────────────────────────────────────────
@@ -434,12 +423,14 @@ export function ClipEditor() {
                       className="w-40 rounded-lg bg-transparent px-2 py-1 text-xs outline-none tx-muted"
                       aria-label="Clip filename"
                     />
-                    <button
-                      onClick={() => downloadClip(c)}
+                    <a
+                      href={clipHref(c)}
+                      download={c.filename}
+                      data-clip-dl
                       className="btn-brand flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold"
                     >
                       <Download size={15} /> Download
-                    </button>
+                    </a>
                     <button
                       onClick={() => removeClip(c.id)}
                       aria-label="Remove clip"

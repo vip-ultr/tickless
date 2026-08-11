@@ -165,3 +165,22 @@ def _hdr():
     # send it; if not (CI), send nothing and the app allows.
     key = os.getenv("TICKLESS_API_KEY", "")
     return {"X-Tickless-Key": key} if key else {}
+
+
+def test_clip_get_native_download(client, tmp_path):
+    """GET (query params) must stream the clip so a native <a href> download
+    works in the browser. The frontend switched away from fetch->blob->click,
+    which silently failed because the click was outside a user gesture."""
+    if not HAS_FFMPEG:
+        pytest.skip("ffmpeg not installed in this environment")
+    token = "realget"
+    d = clipper.park_upload(token, "v.mp4")
+    _make_fake_video(os.path.join(d, "source.mp4"), seconds=2.0)
+    r = client.get(
+        f"/api/clip?token={token}&start=0&end=1.5&audio_only=false",
+        headers=_hdr(),
+    )
+    assert r.status_code == 200, r.text
+    assert r.headers["content-disposition"].startswith("attachment")
+    assert r.headers["content-type"] == "video/mp4"
+    assert len(r.content) > 0

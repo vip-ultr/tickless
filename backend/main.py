@@ -578,18 +578,45 @@ async def api_clip_upload(
 
 @limiter.limit("10/minute")
 @app.post("/api/clip")
+@app.get("/api/clip")
 async def api_clip(
     request: Request,
-    body: ClipRequest,
+    body: ClipRequest | None = None,
+    token: str | None = None,
+    source_url: str | None = None,
+    start: float | None = None,
+    end: float | None = None,
+    audio_only: bool = False,
     x_tickless_key: str | None = Header(default=None),
+    key: str | None = None,
 ):
     """Trim one segment from a source and stream it back. Lazy delivery: the
     source is trimmed on click; the segment temp file is removed after stream.
 
-    Source is resolved from `token` (uploaded) or `source_url` (fetched via the
-    existing yt-dlp path). `audio_only` yields an mp3.
+    Accepts POST (JSON) or GET (query params) so the frontend can trigger a
+    real browser download via a native <a href> link (a programmatic fetch→
+    blob→click inside an async loop loses the user gesture and silently fails).
+
+    Source is resolved from `token` (uploaded) or `source_url` (fetched via
+    the existing yt-dlp path). `audio_only` yields an mp3.
+
+    Accepts the API key via header or ?key= (plain <a href> navigation
+    cannot set custom headers).
     """
-    _require_key(x_tickless_key)
+    # Normalize GET params into a ClipRequest.
+    if body is None:
+        try:
+            body = ClipRequest(
+                token=token,
+                source_url=source_url,
+                start=float(start if start is not None else 0),
+                end=float(end if end is not None else 0),
+                audio_only=bool(audio_only),
+            )
+        except (ValueError, TypeError):
+            raise HTTPException(status_code=400, detail="Missing or invalid start/end.")
+
+    _require_key(x_tickless_key or key)
 
     # Fail fast on an invalid segment before any download/ffmpeg work.
     try:
