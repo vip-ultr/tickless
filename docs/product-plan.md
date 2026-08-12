@@ -172,6 +172,16 @@ Slideshow posts are the exception (must merge images+audio with ffmpeg server-si
 - Light/dark toggle (ship dark-first).
 - Simple analytics (privacy-friendly, e.g. Plausible free/self-host or Vercel Analytics).
 
+### Shipped since launch (added)
+- **Clip** — ported from the my-video-clipper project: paste a TikTok / Instagram /
+  YouTube link or upload a video from your device (max 500 MB), mark multiple
+  start/end segments, and export each as a clean clip or an audio-only track.
+  Lives at `/clip` (navbar link). Backend endpoints: `POST /api/clip/upload`
+  (park source) and `POST`/`GET /api/clip` (trim + stream). Lazy delivery:
+  trimmed on download, source parked under a 1-hour TTL then purged; nothing
+  persisted to Supabase. ffmpeg runs as a subprocess argument list (no shell),
+  which also avoids the quote-breaking bug the clipper had in its subtitle path.
+
 ### Explicitly deferred (YAGNI now)
 - User accounts, history, proxies/IP rotation, mobile apps. Handle at scale later.
 

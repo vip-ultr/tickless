@@ -20,19 +20,28 @@
 ## What it does
 
 Paste a TikTok or Instagram link, pick your quality, and the clean file lands on your
-device. No watermark, no re-recording, no quality loss.
+device. No watermark, no re-recording, no quality loss. Or open **Clip** to turn one
+video into several clean segments.
 
 - **No watermark.** You get the same clean file the platform serves inside its own app, not a re-recorded copy.
 - **Actually free.** No trial, no card, no hidden export fee.
 - **Nothing to install.** It runs in your browser on your phone, tablet, or computer.
 - **We keep nothing.** No accounts, no download history, no copies stored on our side.
 - **Audio too.** Grab just the sound as an MP3 when that is all you need.
+- **Clip.** Paste a link or upload a video, mark the parts you want, and export each segment as a clean clip or an audio-only track. Nothing is stored.
 
 ## How it works
 
 1. **Copy the link.** In TikTok or Instagram, tap Share, then Copy link.
 2. **Paste it here.** Drop the link in the box and hit Download.
 3. **Save the clean file.** Pick HD, standard, or audio, and it saves straight to your device.
+
+### Clip
+
+1. **Open Clip.** It is in the navbar.
+2. **Add a source.** Paste a TikTok / Instagram / YouTube link, or upload a video from your device (max 500 MB).
+3. **Mark the segments.** Scrub the two handles to set each start and end, toggle Audio only if you want sound only, and Add clip. Repeat for as many segments as you like.
+4. **Download.** Each clip downloads on its own, or grab them all at once. The source is trimmed on request and never kept.
 
 ## Why it exists
 
@@ -47,7 +56,7 @@ engineered for reliability rather than tricks.
 | --- | --- |
 | Frontend | Next.js (App Router), React, TypeScript, Tailwind CSS, framer-motion |
 | Frontend hosting | Vercel |
-| Backend | FastAPI + yt-dlp + ffmpeg, containerized |
+| Backend | FastAPI + yt-dlp + ffmpeg, containerized (ffmpeg also trims clips) |
 | Backend hosting | Render |
 | Instagram | Self-hosted Cobalt instance on Render |
 | Ads storage | Supabase (Postgres + object storage) |
@@ -135,6 +144,8 @@ cd api && API_URL=http://127.0.0.1:9000/ PORT=9000 node src/cobalt
 | `GET` | `/api/health/cobalt` | Cobalt sidecar liveness (Instagram path) |
 | `POST` | `/api/extract` | Extract clean media (auth + rate limited) |
 | `GET` | `/api/download` | Stream the clean file to the browser |
+| `POST` | `/api/clip/upload` | Park an uploaded source video; returns a token + duration |
+| `POST` / `GET` | `/api/clip` | Trim one [start, end] segment (video or audio-only) and stream it back |
 
 ## Legal
 
@@ -147,8 +158,10 @@ posture](./docs/legal-posture.md) explains how we think about risk.
 
 ## Status
 
-Actively developed. TikTok and Instagram downloads are live. Photo-carousel to video,
-more platforms, and richer quality options are on the roadmap.
+Actively developed. TikTok and Instagram downloads are live, and **Clip** (manual
+multi-segment trimming + audio-only extraction, from a pasted link or an uploaded
+file) is live. Photo-carousel to video, more platforms, and richer quality options
+are on the roadmap.
 
 ## License
 

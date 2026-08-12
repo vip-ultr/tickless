@@ -18,6 +18,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Navbar now links to `/clip`.
 
 ### Fixed
+- Clip downloads did nothing: the frontend used `fetch` -> `blob` -> `a.click()`,
+  which silently fails because the programmatic click is outside the user-gesture
+  context. `/api/clip` now also accepts `GET` (query params, API key via `?key=`
+  like `/api/download`) and the Download buttons are native `<a href>` links, so
+  the browser saves each clip. Verified end-to-end against a live server.
+- Mobile slide nav was a fixed `height: 52vh` with no scroll, cutting off the
+  added Clip link on small screens. It is now `max-h-[85vh]` + `overflow-y-auto`,
+  so it sizes to content and scrolls.
 - Instagram cold-start 502: the backend no longer fire-and-forgets a single ping
   to the Cobalt service. `cobalt_client._warm_up_cobalt()` now POLLS Cobalt until
   it actually responds (budget `COBALT_WARMUP_BUDGET`, default 55s; interval
