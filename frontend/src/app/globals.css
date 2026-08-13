@@ -32,6 +32,13 @@
 }
 
 @layer base {
+  html {
+    /* Stop iOS Safari from auto-inflating text size (the inflation breaks
+       our carefully sized layout and is the #1 cause of "looks distorted"). */
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+  }
+
   body {
     background: var(--bg-base);
     color: var(--text-primary);
@@ -40,6 +47,9 @@
        the device font. */
     font-family: var(--font-geist-sans), system-ui, sans-serif;
     -webkit-font-smoothing: antialiased;
+    /* Fallback first for older iOS Safari that doesn't know dvh, then the
+       dynamic value that respects the URL bar / home indicator. */
+    min-height: 100vh;
     min-height: 100dvh;
   }
 }
@@ -86,6 +96,16 @@
   @supports not (backdrop-filter: blur(1px)) {
     .glass-strong { background: var(--bg-elevated); }
   }
+
+  /* Prevent iOS Safari focus-zoom: any text input computed below 16px makes
+     Safari zoom the whole page on focus, which reads as "the UI got
+     distorted". Cap the effective size at 16px. !important is needed to beat
+     Tailwind's .text-sm utility (specificity 0,1,0 > our element selector). */
+  input, textarea, select {
+    font-size: 16px !important;
+  }
+  /* Range sliders have no text; keep their track size intact. */
+  input[type="range"] { font-size: inherit !important; }
 
   /* Solid brand button - green primary */
   .btn-brand {

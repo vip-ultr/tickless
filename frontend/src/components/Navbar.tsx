@@ -33,7 +33,7 @@ export function Navbar() {
   }, [open]);
 
   return (
-    <header className="sticky top-0 z-40 px-4 pt-4">
+    <header className="sticky top-0 z-40 px-4 pt-4" style={{ paddingTop: "max(1rem, env(safe-area-inset-top))", paddingLeft: "max(1rem, env(safe-area-inset-left))", paddingRight: "max(1rem, env(safe-area-inset-right))" }}>
       <nav className="glass-strong mx-auto flex max-w-5xl items-center justify-between rounded-2xl px-5 py-3">
         <Wordmark className="text-xl" />
 
@@ -79,6 +79,7 @@ export function Navbar() {
             />
             <motion.div
               className="glass-strong fixed inset-x-0 bottom-0 z-50 flex max-h-[85vh] flex-col rounded-t-3xl px-5 pb-10 pt-3 md:hidden"
+              style={{ paddingBottom: "max(2.5rem, env(safe-area-inset-bottom))" }}
               initial={{ y: "100%" }}
               animate={{ y: 0 }}
               exit={{ y: "100%" }}

@@ -270,12 +270,12 @@ export function ClipEditor() {
                 aria-label="TikTok or Instagram link"
                 placeholder="Paste your TikTok or Instagram link"
                 style={{ color: "var(--text-primary)", caretColor: "var(--brand-primary)" }}
-                className="w-full rounded-xl bg-transparent px-3 py-3 font-mono text-sm outline-none"
+                className="flex-1 min-w-0 rounded-xl bg-transparent px-3 py-3 font-mono text-sm outline-none"
               />
               <button
                 type="submit"
                 disabled={state.kind === "loading"}
-                className="btn-brand flex items-center justify-center gap-2 rounded-xl px-6 py-3 font-semibold disabled:opacity-70 md:w-auto"
+                className="btn-brand flex shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-xl px-6 py-3 font-semibold disabled:opacity-70 md:w-auto"
               >
                 {state.kind === "loading" ? (
                   <Loader2 size={18} className="animate-spin" />

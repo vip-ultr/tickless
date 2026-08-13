@@ -47,6 +47,14 @@ export const metadata: Metadata = {
   alternates: { canonical: "/" },
 };
 
+// viewport-fit=cover lets safe-area-inset* work so the notch / home indicator
+// don't overlap the sticky nav on iOS Safari.
+export const viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+} as const;
+
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
