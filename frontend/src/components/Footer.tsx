@@ -13,7 +13,7 @@ export function Footer() {
               The clean way to save TikTok and Instagram videos.
             </p>
           </div>
-          <div className="flex gap-12">
+          <div className="flex flex-col gap-6 sm:flex-row sm:gap-10 md:gap-12">
             <div className="flex flex-col gap-3">
               <span className="text-xs font-semibold uppercase tracking-wider tx-muted">
                 Product
