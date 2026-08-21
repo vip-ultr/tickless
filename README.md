@@ -4,7 +4,7 @@
 
 ### Clean, watermark-free TikTok and Instagram downloads. No app, no sign-up, no account.
 
-**Built by [Optivis Labs](https://optivislabs.vercel.app)** · Not affiliated with TikTok, ByteDance, Instagram, or Meta.
+**Built @ [Optivis Labs](https://optivislabs.vercel.app)** · Not affiliated with TikTok, ByteDance, Instagram, or Meta.
 
 [Web app](https://tickless.vercel.app) · [Legal posture](./docs/legal-posture.md)
 
