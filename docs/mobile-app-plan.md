@@ -30,6 +30,14 @@
    key is already public via the web bundle; a proxy adds infra while hiding
    nothing from a decompiled APK anyway. Real protection later = per-install
    tokens / attestation behind accounts, out of scope for v1.
+10. Offline clipping (locked 2026-08-23): v1 Clip is ONLINE-ONLY. Link clips can
+   never be offline (media lives on TikTok/IG servers; trim is server-side).
+   Device-upload clips also stay online in v1 because upload + server-side
+   ffmpeg round-trip needs connectivity. UI must show an honest offline state
+   ("clipping needs internet"). V2 CANDIDATE: on-device trimming via ffmpeg-kit
+   ("clip with zero internet" differentiator), pending APK size measurement -
+   ffmpeg-kit adds roughly 20-30MB per ABI vs the locked <30MB total budget,
+   so it must be measured before commitment.
 
 ## 3. Tech stack
 

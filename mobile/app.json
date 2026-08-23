@@ -1,0 +1,47 @@
+{
+  "expo": {
+    "name": "Tickless",
+    "slug": "tickless",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "dark",
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "app.optivis.tickless"
+    },
+    "android": {
+      "package": "app.optivis.tickless",
+      "adaptiveIcon": {
+        "backgroundColor": "#0B0F14",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "permissions": []
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-status-bar"
+    ],
+    "scheme": "tickless",
+    "backgroundColor": "#0B0F14",
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#0B0F14"
+    },
+    "extra": {
+      "apiUrl": "https://tickless.onrender.com",
+      "apiKey": "DEV_KEY_PLACEHOLDER",
+      "router": {},
+      "eas": {
+        "projectId": "04ae2a70-74c7-4baa-a801-f8d4345d8147"
+      }
+    },
+    "owner": "vip-ultr"
+  }
+}
