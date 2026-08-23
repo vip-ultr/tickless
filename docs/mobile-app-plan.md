@@ -25,6 +25,11 @@
 6. Clip: **full** (paste link OR device upload, multi-segment, video + audio-only).
 7. Repo: monorepo, new `mobile/` folder.
 8. Notifications: in-app toasts only; push deferred.
+9. API key handling (locked 2026-08-23): embed directly in the app config
+   (`lib/config.ts`, same value as web NEXT_PUBLIC_API_KEY). Rationale: the
+   key is already public via the web bundle; a proxy adds infra while hiding
+   nothing from a decompiled APK anyway. Real protection later = per-install
+   tokens / attestation behind accounts, out of scope for v1.
 
 ## 3. Tech stack
 
