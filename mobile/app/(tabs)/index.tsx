@@ -5,6 +5,7 @@ import { BRAND, SPACING } from "@/lib/brand";
 import { Panel, Input, Button, Muted, Wordmark } from "@/components/ui/primitives";
 import { ResultCard } from "@/components/ResultCard";
 import { FeatureStrip } from "@/components/FeatureStrip";
+import { AdBanner } from "@/components/AdBanner";
 
 type State =
   | { kind: "idle" }
@@ -61,9 +62,18 @@ export default function DownloadScreen() {
           )}
         </Panel>
 
+        {state.kind === "idle" && !url && (
+          <AdBanner slot="in_content" style={{ marginTop: 16 }} />
+        )}
+
         {state.kind === "loading" && <SkeletonCard />}
 
-        {state.kind === "done" && <ResultCard data={state.data} />}
+        {state.kind === "done" && (
+          <>
+            <ResultCard data={state.data} />
+            <AdBanner slot="result" style={{ marginTop: 16 }} />
+          </>
+        )}
 
         {state.kind === "error" && (
           <Panel style={[{ marginTop: 20 }, styles.errorPanel]}>
