@@ -1,16 +1,21 @@
 import { View, Text, Pressable, StyleSheet } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { BlurView } from "expo-blur";
 import { Tabs } from "expo-router";
 import { Download, Scissors, Info, Menu } from "lucide-react-native";
 import { BRAND } from "@/lib/brand";
 import { FONT } from "@/components/ui/fonts";
 
-// Research-backed tab bar (X/Instagram/Telegram pattern):
-// - Bar is a FULL-width translucent layer anchored to the very bottom edge,
-//   with its height INCLUDING the gesture inset (safe area). Content scrolls
-//   behind it. This is exactly how X handles Android gesture nav.
-// - Icons+labels are vertically centered within the bar's CONTENT area
-//   (above the inset), so nothing gets clipped by the pill shape.
-// - No floating dock: the "dock" look was clipping icons and overflowing.
+// Floating glass dock - the web app's nav translated to native.
+// Web recipe (globals.css .glass-strong): heavy blur + saturate, LIGHT tint,
+// 1px light border (0.16 white), inset top highlight (specular pane edge),
+// soft drop shadow, rounded-2xl (16px).
+//
+// OS-nav control: we measure the device bottom inset ourselves via
+// useSafeAreaInsets and place the dock at inset.bottom + 10. It can NEVER
+// go below the system gesture bar on any device because its position is
+// derived from that exact value.
+const INSET_GAP = 10;
 
 const ICONS = {
   index: Download,
@@ -33,31 +38,59 @@ function TabItem({
   const Icon = ICONS[name];
   return (
     <Pressable onPress={onPress} style={styles.item}>
-      <Icon color={focused ? BRAND.green : BRAND.muted} size={20} strokeWidth={focused ? 2.4 : 2} />
-      <Text
-        style={[
-          focused ? styles.labelActive : styles.labelIdle,
-          { fontFamily: FONT },
-        ]}
-      >
-        {label}
-      </Text>
+      {focused ? (
+        <View style={[styles.pill, styles.pillActive]}>
+          <Icon color={BRAND.greenText} size={16} strokeWidth={2.4} />
+          <Text style={[styles.labelActive, { fontFamily: FONT }]}>{label}</Text>
+        </View>
+      ) : (
+        <>
+          <Icon color={BRAND.muted} size={19} strokeWidth={2} />
+          <Text style={[styles.labelIdle, { fontFamily: FONT }]}>{label}</Text>
+        </>
+      )}
     </Pressable>
   );
 }
 
 export default function TabLayout() {
+  const insets = useSafeAreaInsets();
+
   return (
     <Tabs
       screenOptions={{
         headerShown: false,
         tabBarShowLabel: false,
-        tabBarStyle: styles.tabBar,
+        tabBarStyle: {
+          position: "absolute",
+          // Controlled by the real OS inset: dock bottom edge sits just above
+          // the gesture bar on every device.
+          bottom: Math.max(insets.bottom, 12) + INSET_GAP,
+          left: 20,
+          right: 20,
+          height: 62,
+          borderRadius: 16, // web rounded-2xl
+          borderTopWidth: 1,
+          borderTopColor: "rgba(255,255,255,0.25)", // web --glass-highlight
+          backgroundColor: "rgba(17,22,29,0.72)",
+          overflow: "hidden",
+          elevation: 0,
+          shadowColor: "#000",
+          shadowOpacity: 0.45,
+          shadowRadius: 32,
+          shadowOffset: { width: 0, height: 12 },
+        },
         tabBarBackground: () => (
-          // full-bleed glass layer; the bar itself spans edge to edge
-          <View style={StyleSheet.absoluteFill}>
-            <View style={[StyleSheet.absoluteFill, { backgroundColor: "rgba(11,15,20,0.85)" }]} />
-          </View>
+          // .glass-strong: blur(64px)+saturate(160%) equivalent; expo-blur
+          // intensity maps ~0-100. Light experimental tint so content bleeds
+          // through like true glass instead of a flat overlay.
+          <BlurView
+            intensity={70}
+            tint="dark"
+            experimentalBlurMethod="dimezisBlurView"
+            style={StyleSheet.absoluteFill}
+            pointerEvents="none"
+          />
         ),
       }}
     >
@@ -92,25 +125,28 @@ export default function TabLayout() {
 }
 
 const styles = StyleSheet.create({
-  // Full-width bar pinned to the bottom; React Navigation adds the device
-  // safe-area inset automatically for non-absolute bars. Height is the icon
-  // area only - the inset is added on top of this.
-  tabBar: {
-    backgroundColor: "rgba(11,15,20,0.88)",
-    borderTopWidth: 1,
-    borderTopColor: "rgba(255,255,255,0.06)",
-    height: 60,
-    elevation: 0,
-  },
   item: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
     gap: 3,
   },
+  pill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 12, // web rounded-2xl scale for the smaller pill
+  },
+  pillActive: {
+    backgroundColor: BRAND.greenDim,
+    borderWidth: 1,
+    borderColor: "rgba(167,233,84,0.35)",
+  },
   labelActive: {
     color: BRAND.green,
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "700",
   },
   labelIdle: {

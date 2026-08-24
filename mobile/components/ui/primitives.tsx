@@ -70,18 +70,21 @@ export function Wordmark({ size = 40 }: { size?: number }) {
 
 const styles = StyleSheet.create({
   panel: {
-    // Matches web glass-strong: high-opacity tint so it reads as frosted
-    // glass on midnight, not a flat gray box
-    backgroundColor: "rgba(21,27,36,0.88)",
+    // Web .glass recipe (globals.css line 72): LIGHT tint (over-tinting kills
+    // the glass effect), 1px light border, inset top highlight = specular
+    // pane edge, soft drop shadow for lift.
+    backgroundColor: "rgba(140,160,190,0.08)", // --glass-tint equivalent
     borderRadius: RADIUS.panel,
     padding: 18,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.08)",
+    borderColor: "rgba(230,240,255,0.16)", // --glass-border
     shadowColor: "#000",
     shadowOpacity: 0.35,
-    shadowRadius: 20,
-    shadowOffset: { width: 0, height: 10 },
-    elevation: 8,
+    shadowRadius: 32,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 6,
+    // inset top highlight
+    ...({ borderTopColor: "rgba(255,255,255,0.25)" } as object),
   },
   input: {
     backgroundColor: "rgba(11,15,20,0.6)",
