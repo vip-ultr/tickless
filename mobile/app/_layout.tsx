@@ -10,7 +10,9 @@ export default function RootLayout() {
       <Stack
         screenOptions={{
           headerShown: false,
-          contentStyle: { backgroundColor: BRAND.midnight },
+          // transparent stack screens so content scrolls edge-to-edge under
+          // the OS chrome; each screen owns its own background
+          contentStyle: { backgroundColor: "transparent" },
         }}
       >
         <Stack.Screen name="(tabs)" />

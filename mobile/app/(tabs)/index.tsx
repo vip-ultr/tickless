@@ -1,9 +1,8 @@
 import { useState } from "react";
-import { View, Text, Pressable, ActivityIndicator, ScrollView, StyleSheet } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { View, Text, ActivityIndicator, ScrollView, StyleSheet, Image, Pressable } from "react-native";
 import { extract } from "@/lib/api";
-import { BRAND } from "@/lib/brand";
-import { GlassCard, Input, Muted } from "@/components/ui/primitives";
+import { BRAND, SPACING } from "@/lib/brand";
+import { Panel, Input, Button, Muted, Wordmark } from "@/components/ui/primitives";
 
 type State =
   | { kind: "idle" }
@@ -23,81 +22,114 @@ export default function DownloadScreen() {
       setState({ kind: "done", data });
     } catch (e: unknown) {
       const err = e as { message?: string };
-      setState({ kind: "error", message: err.message ?? "Something went wrong." });
+      setState({ kind: "error", message: err.message ?? "Something went wrong on our side. Give it another try in a moment." });
     }
   }
 
   return (
-    <SafeAreaView style={styles.safe} edges={["top"]}>
-      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-        <Text style={styles.wordmark}>
-          <Text style={styles.white}>Tick</Text>
-          <Text style={styles.green}>less</Text>
+    <View style={styles.root}>
+      <ScrollView
+        contentContainerStyle={styles.content}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+      >
+        <Wordmark />
+        <Text style={styles.heroSub}>
+          Save any TikTok without the watermark. Paste the link and the clean video lands on your device.
         </Text>
-        <Muted>Save TikTok and Instagram videos without the watermark.</Muted>
 
-        <GlassCard style={{ marginTop: 20 }}>
+        <Panel style={{ marginTop: 32 }}>
           <Input
             value={url}
             onChangeText={setUrl}
             placeholder="Paste a TikTok or Instagram link"
-            placeholderTextColor={BRAND.muted}
             onSubmitEditing={onExtract}
             returnKeyType="go"
           />
-          <Pressable
+          <Button
+            title="Get video"
             onPress={onExtract}
             disabled={state.kind === "loading"}
-            style={({ pressed }) => [
-              styles.button,
-              state.kind === "loading" && styles.buttonDisabled,
-              pressed && styles.buttonPressed,
-            ]}
-          >
-            {state.kind === "loading" ? (
-              <ActivityIndicator color={BRAND.greenText} />
-            ) : (
-              <Text style={styles.buttonLabel}>Extract</Text>
-            )}
-          </Pressable>
-        </GlassCard>
+            style={{ marginTop: 14 }}
+          />
+          {state.kind === "idle" && !url && (
+            <Muted style={{ marginTop: 12 }}>
+              Works with tiktok.com, vm.tiktok.com, instagram.com and short links.
+            </Muted>
+          )}
+        </Panel>
 
-        {state.kind === "done" && (
-          <GlassCard style={{ marginTop: 16 }}>
-            <Text style={styles.title}>{state.data.title ?? "Untitled"}</Text>
-            <Muted>{[state.data.author, state.data.platform].filter(Boolean).join(" - ")}</Muted>
-            {/* M1: thumbnail + download buttons + save to gallery */}
-          </GlassCard>
-        )}
+        {state.kind === "loading" && <SkeletonCard />}
+
+        {state.kind === "done" && <ResultCard data={state.data} />}
 
         {state.kind === "error" && (
-          <GlassCard style={[{ marginTop: 16 }, styles.errorCard]}>
+          <Panel style={[{ marginTop: 20 }, styles.errorPanel]}>
             <Text style={styles.errorText}>{state.message}</Text>
-          </GlassCard>
+          </Panel>
         )}
       </ScrollView>
-    </SafeAreaView>
+    </View>
+  );
+}
+
+function ResultCard({ data }: { data: Awaited<ReturnType<typeof extract>> }) {
+  return (
+    <Panel style={{ marginTop: 20 }}>
+      {data.thumbnail ? (
+        <Image source={{ uri: data.thumbnail }} style={styles.thumb} resizeMode="cover" />
+      ) : null}
+      <Text style={styles.title} numberOfLines={2}>
+        {data.title ?? "Untitled"}
+      </Text>
+      <Muted style={{ marginTop: 2 }}>
+        {[data.author, data.platform].filter(Boolean).join(" - ")}
+      </Muted>
+      {/* M1 next iteration: real download buttons (video/audio/gallery) saving to the Tickless album */}
+      <Text style={styles.soonNote}>Download buttons arrive in the next update.</Text>
+    </Panel>
+  );
+}
+
+function SkeletonCard() {
+  return (
+    <Panel style={{ marginTop: 20 }}>
+      <View style={[styles.skeletonBlock, styles.skeletonThumb]} />
+      <View style={[styles.skeletonBlock, { width: "80%", height: 16, marginTop: 16 }]} />
+      <View style={[styles.skeletonBlock, { width: "45%", height: 12, marginTop: 10 }]} />
+      <Muted style={{ marginTop: 16 }}>Reading the video...</Muted>
+    </Panel>
   );
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: BRAND.midnight },
-  content: { padding: 20, paddingBottom: 40 },
-  wordmark: { fontSize: 28, fontWeight: "700", letterSpacing: -0.5 },
-  white: { color: BRAND.white },
-  green: { color: BRAND.green },
-  title: { color: BRAND.white, fontSize: 16, fontWeight: "600", lineHeight: 22 },
-  button: {
-    marginTop: 12,
-    backgroundColor: BRAND.green,
-    borderRadius: 14,
-    minHeight: 50,
-    alignItems: "center",
-    justifyContent: "center",
+  root: { flex: 1, backgroundColor: BRAND.midnight },
+  content: {
+    padding: SPACING.screen,
+    paddingTop: 72,
+    paddingBottom: 140,
   },
-  buttonPressed: { opacity: 0.85 },
-  buttonDisabled: { opacity: 0.6 },
-  buttonLabel: { color: BRAND.greenText, fontSize: 16, fontWeight: "700" },
-  errorCard: { borderColor: "rgba(255,107,107,0.4)" },
+  heroSub: {
+    color: BRAND.muted,
+    fontSize: 16,
+    lineHeight: 23,
+    marginTop: 10,
+    maxWidth: 320,
+  },
+  thumb: {
+    width: "100%",
+    height: 190,
+    borderRadius: 18,
+    marginBottom: 14,
+    backgroundColor: BRAND.midnightElevated,
+  },
+  title: { color: BRAND.white, fontSize: 17, fontWeight: "600", lineHeight: 23 },
+  soonNote: { color: BRAND.blue, fontSize: 13, marginTop: 14 },
+  skeletonBlock: {
+    backgroundColor: "rgba(255,255,255,0.06)",
+    borderRadius: 12,
+  },
+  skeletonThumb: { width: "100%", height: 160 },
+  errorPanel: { backgroundColor: BRAND.dangerTint },
   errorText: { color: BRAND.danger, fontSize: 14, lineHeight: 20 },
 });

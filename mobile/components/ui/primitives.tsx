@@ -1,57 +1,111 @@
-import { useState } from "react";
-import { View, Text, TextInput, StyleSheet, type StyleProp, type ViewStyle, type TextInputProps } from "react-native";
-import { BRAND } from "@/lib/brand";
+import { Text, TextInput, View, Pressable, StyleSheet, type StyleProp, type ViewStyle, type TextInputProps, type TextProps } from "react-native";
+import { BRAND, RADIUS } from "@/lib/brand";
 
-export function GlassCard({
-  children,
-  style,
-}: {
-  children: React.ReactNode;
-  style?: StyleProp<ViewStyle>;
-}) {
-  return <View style={[styles.card, style]}>{children}</View>;
+// Depth panel: translucent tint + soft shadow. No borders (anti-2015).
+export function Panel({ children, style }: { children: React.ReactNode; style?: StyleProp<ViewStyle> }) {
+  return <View style={[styles.panel, style]}>{children}</View>;
 }
 
 export function Input(props: TextInputProps) {
-  const [focused, setFocused] = useState(false);
   return (
     <TextInput
       {...props}
-      onFocus={(e) => {
-        setFocused(true);
-        props.onFocus?.(e);
-      }}
-      onBlur={(e) => {
-        setFocused(false);
-        props.onBlur?.(e);
-      }}
       placeholderTextColor={BRAND.muted}
-      style={[styles.input, { borderColor: focused ? BRAND.green : BRAND.glassBorder }, props.style]}
+      autoCapitalize="none"
+      autoCorrect={false}
+      style={[styles.input, props.style]}
     />
   );
 }
 
-export function Muted({ children }: { children: React.ReactNode }) {
-  return <Text style={styles.muted}>{children}</Text>;
+export function Button({
+  title,
+  onPress,
+  variant = "primary",
+  disabled,
+  style,
+}: {
+  title: string;
+  onPress?: () => void;
+  variant?: "primary" | "ghost";
+  disabled?: boolean;
+  style?: StyleProp<ViewStyle>;
+}) {
+  return (
+    <Pressable
+      onPress={onPress}
+      disabled={disabled}
+      style={({ pressed }) => [
+        styles.button,
+        variant === "primary" ? styles.buttonPrimary : styles.buttonGhost,
+        pressed && styles.pressed,
+        disabled && styles.disabled,
+        style,
+      ]}
+    >
+      <Text
+        style={[
+          styles.buttonLabel,
+          { color: variant === "primary" ? BRAND.greenText : BRAND.green },
+        ]}
+      >
+        {title}
+      </Text>
+    </Pressable>
+  );
+}
+
+export function Muted({ style, ...props }: TextProps) {
+  return <Text {...props} style={[styles.muted, style]} />;
+}
+
+export function Wordmark({ size = 40 }: { size?: number }) {
+  return (
+    <Text style={{ fontSize: size, fontWeight: "800", letterSpacing: -size * 0.03, lineHeight: size * 1.15 }}>
+      <Text style={{ color: BRAND.white }}>Tick</Text>
+      <Text style={{ color: BRAND.green }}>less</Text>
+    </Text>
+  );
 }
 
 const styles = StyleSheet.create({
-  card: {
-    backgroundColor: BRAND.glassTint,
-    borderWidth: 1,
-    borderColor: BRAND.glassBorder,
-    borderRadius: 18,
-    padding: 16,
+  panel: {
+    backgroundColor: BRAND.glassTintStrong,
+    borderRadius: RADIUS.panel,
+    padding: 18,
+    shadowColor: "#000",
+    shadowOpacity: 0.3,
+    shadowRadius: 24,
+    shadowOffset: { width: 0, height: 12 },
+    elevation: 8,
   },
   input: {
-    backgroundColor: BRAND.midnightElevated,
-    borderWidth: 1,
-    borderRadius: 14,
+    backgroundColor: "rgba(11,15,20,0.6)",
+    borderRadius: RADIUS.input,
     color: BRAND.white,
     fontSize: 15,
-    paddingVertical: 13,
+    minHeight: 52,
     paddingHorizontal: 16,
-    minHeight: 48,
   },
+  button: {
+    borderRadius: RADIUS.button,
+    minHeight: 54,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 20,
+  },
+  buttonPrimary: {
+    backgroundColor: BRAND.green,
+    shadowColor: BRAND.green,
+    shadowOpacity: 0.25,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 6 },
+  },
+  buttonGhost: {
+    backgroundColor: BRAND.greenDim,
+  },
+  pressed: { transform: [{ scale: 0.98 }], opacity: 0.9 },
+  disabled: { opacity: 0.5 },
+  buttonLabel: { fontSize: 16, fontWeight: "700", letterSpacing: 0.2 },
   muted: { color: BRAND.muted, fontSize: 13, lineHeight: 19 },
 });

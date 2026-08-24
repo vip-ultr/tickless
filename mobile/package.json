@@ -5,6 +5,7 @@
   "dependencies": {
     "@expo/vector-icons": "^15.0.2",
     "expo": "~57.0.15",
+    "expo-blur": "^57.0.2",
     "expo-constants": "~57.0.13",
     "expo-dev-client": "^57.0.14",
     "expo-document-picker": "~57.0.1",
@@ -24,7 +25,7 @@
     "react-native-safe-area-context": "~5.7.0",
     "react-native-screens": "~4.26.0",
     "react-native-svg": "15.15.4",
-    "react-native-worklets": "^0.10.4"
+    "react-native-worklets": "^0.10.1"
   },
   "devDependencies": {
     "@types/react": "~19.2.2",
