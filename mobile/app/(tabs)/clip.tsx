@@ -12,6 +12,8 @@ import * as DocumentPicker from "expo-document-picker";
 import { FolderUp, Plus, Trash2, Scissors } from "lucide-react-native";
 import { uploadSource, trimSegment, type UploadResult } from "@/lib/clip";
 import { saveToGallery } from "@/lib/gallery";
+import { tap, success as hapticSuccess, error as hapticError } from "@/lib/haptics";
+import { showToast } from "@/app/_layout";
 import type { ApiError } from "@/lib/types";
 import { BRAND, SPACING } from "@/lib/brand";
 import { Panel, Input, Button, Muted, Wordmark } from "@/components/ui/primitives";
@@ -77,6 +79,7 @@ export default function ClipScreen() {
   }
 
   function addSegment() {
+    tap();
     setSegments((segs) => [...segs, { id: nextId++, start: "", end: "" }]);
   }
 
@@ -112,6 +115,11 @@ export default function ClipScreen() {
         await saveToGallery(file.uri, file.mimeType);
         savedCount++;
       }
+      hapticSuccess();
+      showToast({
+        kind: "success",
+        message: savedCount === 1 ? "Clip saved to your album" : `${savedCount} clips saved`,
+      });
       setPhase({
         kind: "exported",
         message:
@@ -121,6 +129,8 @@ export default function ClipScreen() {
       });
     } catch (e: unknown) {
       const err = e as ApiError;
+      hapticError();
+      showToast({ kind: "error", message: err.message ?? "Export failed." });
       setError(err.message ?? "Export failed. Try again.");
       // Re-derive editing phase from what we were exporting
       setPhase((p) =>

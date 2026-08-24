@@ -4,6 +4,8 @@ import { CheckCircle2 } from "lucide-react-native";
 import type { ExtractResult, ApiError } from "@/lib/types";
 import { downloadToCache } from "@/lib/download";
 import { saveToGallery } from "@/lib/gallery";
+import { tap, success as hapticSuccess, error as hapticError } from "@/lib/haptics";
+import { showToast } from "@/app/_layout";
 import { BRAND } from "@/lib/brand";
 import { Panel, Button, Muted } from "@/components/ui/primitives";
 
@@ -25,6 +27,8 @@ export function ResultCard({ data }: { data: ExtractResult }) {
   const selectedType = types[selected] ?? "video";
 
   async function saveOne(index: number) {
+    if (save.kind === "saving") return;
+    tap();
     const itemUrl = isCarousel ? gallery[index] : data.video_url;
     if (!itemUrl) {
       setSave({ kind: "failed", message: "No media found for this item." });
@@ -44,9 +48,13 @@ export function ResultCard({ data }: { data: ExtractResult }) {
         (f) => setSave((s) => (s.kind === "saving" ? { ...s, progress: f } : s)),
       );
       await saveToGallery(file.uri, file.mimeType);
+      hapticSuccess();
+      showToast({ kind: "success", message: "Saved to your Tickless album" });
       setSave({ kind: "saved" });
     } catch (e: unknown) {
       const err = e as ApiError;
+      hapticError();
+      showToast({ kind: "error", message: err.message ?? "Could not save the file." });
       setSave({ kind: "failed", message: err.message ?? "Could not save the file. Try again." });
     }
   }
