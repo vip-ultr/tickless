@@ -1,8 +1,9 @@
 import { useState } from "react";
-import { View, Text, ActivityIndicator, ScrollView, StyleSheet, Image, Pressable } from "react-native";
+import { View, Text, ScrollView, StyleSheet } from "react-native";
 import { extract } from "@/lib/api";
 import { BRAND, SPACING } from "@/lib/brand";
 import { Panel, Input, Button, Muted, Wordmark } from "@/components/ui/primitives";
+import { ResultCard } from "@/components/ResultCard";
 
 type State =
   | { kind: "idle" }
@@ -70,24 +71,6 @@ export default function DownloadScreen() {
         )}
       </ScrollView>
     </View>
-  );
-}
-
-function ResultCard({ data }: { data: Awaited<ReturnType<typeof extract>> }) {
-  return (
-    <Panel style={{ marginTop: 20 }}>
-      {data.thumbnail ? (
-        <Image source={{ uri: data.thumbnail }} style={styles.thumb} resizeMode="cover" />
-      ) : null}
-      <Text style={styles.title} numberOfLines={2}>
-        {data.title ?? "Untitled"}
-      </Text>
-      <Muted style={{ marginTop: 2 }}>
-        {[data.author, data.platform].filter(Boolean).join(" - ")}
-      </Muted>
-      {/* M1 next iteration: real download buttons (video/audio/gallery) saving to the Tickless album */}
-      <Text style={styles.soonNote}>Download buttons arrive in the next update.</Text>
-    </Panel>
   );
 }
 
