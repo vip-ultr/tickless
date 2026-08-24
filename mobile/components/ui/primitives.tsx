@@ -70,13 +70,17 @@ export function Wordmark({ size = 40 }: { size?: number }) {
 
 const styles = StyleSheet.create({
   panel: {
-    backgroundColor: BRAND.glassTintStrong,
+    // Matches web glass-strong: high-opacity tint so it reads as frosted
+    // glass on midnight, not a flat gray box
+    backgroundColor: "rgba(21,27,36,0.88)",
     borderRadius: RADIUS.panel,
     padding: 18,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.08)",
     shadowColor: "#000",
-    shadowOpacity: 0.3,
-    shadowRadius: 24,
-    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.35,
+    shadowRadius: 20,
+    shadowOffset: { width: 0, height: 10 },
     elevation: 8,
   },
   input: {
