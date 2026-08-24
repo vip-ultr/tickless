@@ -4,6 +4,7 @@ import { extract } from "@/lib/api";
 import { BRAND, SPACING } from "@/lib/brand";
 import { Panel, Input, Button, Muted, Wordmark } from "@/components/ui/primitives";
 import { ResultCard } from "@/components/ResultCard";
+import { FeatureStrip } from "@/components/FeatureStrip";
 
 type State =
   | { kind: "idle" }
@@ -69,6 +70,8 @@ export default function DownloadScreen() {
             <Text style={styles.errorText}>{state.message}</Text>
           </Panel>
         )}
+
+        {state.kind !== "done" && <FeatureStrip />}
       </ScrollView>
     </View>
   );

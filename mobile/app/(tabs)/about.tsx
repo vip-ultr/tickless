@@ -1,13 +1,14 @@
 import { View, Text, StyleSheet, ScrollView } from "react-native";
 import { BRAND, SPACING } from "@/lib/brand";
 import { Panel, Wordmark } from "@/components/ui/primitives";
+import { Logo } from "@/components/Logo";
 
 // About tab: verbatim locked copy from docs/content.md section 4.
 export default function AboutScreen() {
   return (
     <View style={styles.root}>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
-        <Wordmark size={34} />
+        <Logo size={56} />
         <Text style={styles.h}>About Tickless</Text>
 
         <Text style={styles.body}>
