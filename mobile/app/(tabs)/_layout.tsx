@@ -40,12 +40,12 @@ function TabItem({
     <Pressable onPress={onPress} style={styles.item}>
       {focused ? (
         <View style={[styles.pill, styles.pillActive]}>
-          <Icon color={BRAND.greenText} size={16} strokeWidth={2.4} />
+          <Icon color={BRAND.greenText} size={15} strokeWidth={2.4} />
           <Text style={[styles.labelActive, { fontFamily: FONT }]}>{label}</Text>
         </View>
       ) : (
         <>
-          <Icon color={BRAND.muted} size={19} strokeWidth={2} />
+          <Icon color={BRAND.muted} size={18} strokeWidth={2} />
           <Text style={[styles.labelIdle, { fontFamily: FONT }]}>{label}</Text>
         </>
       )}
@@ -68,7 +68,7 @@ export default function TabLayout() {
           bottom: Math.max(insets.bottom, 12) + INSET_GAP,
           left: 20,
           right: 20,
-          height: 62,
+          height: 68,
           borderRadius: 16, // web rounded-2xl
           borderTopWidth: 1,
           borderTopColor: "rgba(255,255,255,0.25)", // web --glass-highlight
@@ -129,14 +129,14 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    gap: 3,
+    gap: 2,
   },
   pill: {
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
     borderRadius: 12, // web rounded-2xl scale for the smaller pill
   },
   pillActive: {
@@ -146,12 +146,12 @@ const styles = StyleSheet.create({
   },
   labelActive: {
     color: BRAND.green,
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: "700",
   },
   labelIdle: {
     color: BRAND.muted,
-    fontSize: 10.5,
+    fontSize: 10,
     fontWeight: "500",
   },
 });
