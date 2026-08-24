@@ -1,13 +1,17 @@
 import { View, Text, Pressable, StyleSheet } from "react-native";
-import { BlurView } from "expo-blur";
 import { Tabs } from "expo-router";
 import { Download, Scissors, Info, Menu } from "lucide-react-native";
 import { BRAND } from "@/lib/brand";
+import { FONT } from "@/components/ui/fonts";
 
-// Late-2026 tab bar: detached floating dock with REAL glass (BlurView,
-// supported since dev-client build #6), icon + label, green pill behind the
-// active item. The dock floats ABOVE the system gesture area - it never
-// stretches under the device nav buttons.
+// Research-backed tab bar (X/Instagram/Telegram pattern):
+// - Bar is a FULL-width translucent layer anchored to the very bottom edge,
+//   with its height INCLUDING the gesture inset (safe area). Content scrolls
+//   behind it. This is exactly how X handles Android gesture nav.
+// - Icons+labels are vertically centered within the bar's CONTENT area
+//   (above the inset), so nothing gets clipped by the pill shape.
+// - No floating dock: the "dock" look was clipping icons and overflowing.
+
 const ICONS = {
   index: Download,
   clip: Scissors,
@@ -29,17 +33,15 @@ function TabItem({
   const Icon = ICONS[name];
   return (
     <Pressable onPress={onPress} style={styles.item}>
-      {focused ? (
-        <View style={[styles.pill, styles.pillActive]}>
-          <Icon color={BRAND.greenText} size={16} strokeWidth={2.4} />
-          <Text style={[styles.labelActive, { fontFamily: "Geist" }]}>{label}</Text>
-        </View>
-      ) : (
-        <>
-          <Icon color={BRAND.muted} size={19} strokeWidth={2} />
-          <Text style={[styles.labelIdle, { fontFamily: "Geist" }]}>{label}</Text>
-        </>
-      )}
+      <Icon color={focused ? BRAND.green : BRAND.muted} size={20} strokeWidth={focused ? 2.4 : 2} />
+      <Text
+        style={[
+          focused ? styles.labelActive : styles.labelIdle,
+          { fontFamily: FONT },
+        ]}
+      >
+        {label}
+      </Text>
     </Pressable>
   );
 }
@@ -51,11 +53,11 @@ export default function TabLayout() {
         headerShown: false,
         tabBarShowLabel: false,
         tabBarStyle: styles.tabBar,
-        tabBarActiveTintColor: BRAND.green,
-        tabBarInactiveTintColor: BRAND.muted,
-        // Real glass: blur clipped to the dock shape
         tabBarBackground: () => (
-          <BlurView intensity={48} tint="dark" style={StyleSheet.absoluteFill} pointerEvents="none" />
+          // full-bleed glass layer; the bar itself spans edge to edge
+          <View style={StyleSheet.absoluteFill}>
+            <View style={[StyleSheet.absoluteFill, { backgroundColor: "rgba(11,15,20,0.85)" }]} />
+          </View>
         ),
       }}
     >
@@ -90,21 +92,15 @@ export default function TabLayout() {
 }
 
 const styles = StyleSheet.create({
+  // Full-width bar pinned to the bottom; React Navigation adds the device
+  // safe-area inset automatically for non-absolute bars. Height is the icon
+  // area only - the inset is added on top of this.
   tabBar: {
-    position: "absolute",
-    bottom: 24,
-    left: 20,
-    right: 20,
-    height: 64,
-    borderRadius: 32,
-    borderTopWidth: 0,
-    backgroundColor: "rgba(17,22,29,0.60)",
-    overflow: "hidden",
+    backgroundColor: "rgba(11,15,20,0.88)",
+    borderTopWidth: 1,
+    borderTopColor: "rgba(255,255,255,0.06)",
+    height: 60,
     elevation: 0,
-    shadowColor: "#000",
-    shadowOpacity: 0.35,
-    shadowRadius: 18,
-    shadowOffset: { width: 0, height: 8 },
   },
   item: {
     flex: 1,
@@ -112,22 +108,9 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     gap: 3,
   },
-  pill: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 999,
-  },
-  pillActive: {
-    backgroundColor: BRAND.greenDim,
-    borderWidth: 1,
-    borderColor: "rgba(167,233,84,0.35)",
-  },
   labelActive: {
     color: BRAND.green,
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: "700",
   },
   labelIdle: {
@@ -136,4 +119,3 @@ const styles = StyleSheet.create({
     fontWeight: "500",
   },
 });
-
