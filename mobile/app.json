@@ -37,7 +37,7 @@
     },
     "extra": {
       "apiUrl": "https://tickless.onrender.com",
-      "apiKey": "DEV_KEY_PLACEHOLDER",
+      "apiKey": "17be9e119a53c41816d4987de9855d607ffb98a7e1d6ffe681ef4cdbfd637954",
       "router": {},
       "eas": {
         "projectId": "04ae2a70-74c7-4baa-a801-f8d4345d8147"
