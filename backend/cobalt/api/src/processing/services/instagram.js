@@ -298,6 +298,36 @@ export default function instagram(obj) {
         return { error: "fetch.empty" };
     }
 
+    // Pull the public-facing post metadata (caption, author, cover) out of the
+    // GQL/post object so Tickless can render an Instagram result the same way it
+    // renders a TikTok result (cover + caption + @author). Cobalt's core
+    // response builder normally DROPS everything except url/thumb, so we stash
+    // these on a `meta` object that request.js is patched to forward.
+    function extractMeta(node, id) {
+        const captionEdges = node?.edge_media_to_caption?.edges
+            || node?.caption?.edges
+            || [];
+        const caption = captionEdges.length
+            ? (captionEdges[0]?.node?.text || "")
+            : "";
+        const author = (node?.owner?.username
+            || node?.owner?.reel_owner?.username
+            || "") || "";
+        // Cover must be the PUBLIC display_url (a *.fna.fbcdn.net URL the user's
+        // browser can load directly), NOT the proxied loopback thumb which only
+        // resolves inside this container.
+        const thumbnail = node?.display_url
+            || node?.thumbnail_src
+            || node?.image_versions2?.candidates?.[0]?.url
+            || "";
+        return { title: caption, author, thumbnail };
+    }
+
+    function attachMeta(result, node, id) {
+        const meta = extractMeta(node, id);
+        return { ...result, meta };
+    }
+
     function extractOldPost(data, id, alwaysProxy) {
         const shortcodeMedia = data?.gql_data?.shortcode_media || data?.gql_data?.xdt_shortcode_media;
         const sidecar = shortcodeMedia?.edge_sidecar_to_children;
@@ -338,23 +368,23 @@ export default function instagram(obj) {
                     }
                 });
 
-            if (picker.length) return { picker }
+            if (picker.length) return attachMeta({ picker }, shortcodeMedia, id)
         }
 
         if (shortcodeMedia?.video_url) {
-            return {
+            return attachMeta({
                 urls: shortcodeMedia.video_url,
                 filename: `instagram_${id}.mp4`,
                 audioFilename: `instagram_${id}_audio`
-            }
+            }, shortcodeMedia, id)
         }
 
         if (shortcodeMedia?.display_url) {
-            return {
+            return attachMeta({
                 urls: shortcodeMedia.display_url,
                 isPhoto: true,
                 filename: `instagram_${id}.jpg`,
-            }
+            }, shortcodeMedia, id)
         }
     }
 
@@ -396,20 +426,20 @@ export default function instagram(obj) {
                     }
                 });
 
-            if (picker.length) return { picker }
+            if (picker.length) return attachMeta({ picker }, data, id)
         } else if (data.video_versions) {
             const video = data.video_versions.reduce((a, b) => a.width * a.height < b.width * b.height ? b : a)
-            return {
+            return attachMeta({
                 urls: video.url,
                 filename: `instagram_${id}.mp4`,
                 audioFilename: `instagram_${id}_audio`
-            }
+            }, data, id)
         } else if (data.image_versions2?.candidates) {
-            return {
+            return attachMeta({
                 urls: data.image_versions2.candidates[0].url,
                 isPhoto: true,
                 filename: `instagram_${id}.jpg`,
-            }
+            }, data, id)
         }
     }
 

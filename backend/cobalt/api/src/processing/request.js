@@ -39,14 +39,18 @@ export function createResponse(responseType, responseData) {
             case "redirect":
                 response = {
                     url: responseData?.url,
-                    filename: responseData?.filename
+                    filename: responseData?.filename,
+                    // Forward IG post metadata (caption/author/cover) when present.
+                    ...(responseData?.meta ? { title: responseData.meta.title, author: responseData.meta.author, thumbnail: responseData.meta.thumbnail } : {})
                 }
                 break;
 
             case "tunnel":
                 response = {
                     url: createStream(responseData),
-                    filename: responseData?.filename
+                    filename: responseData?.filename,
+                    // Forward IG post metadata (caption/author/cover) when present.
+                    ...(responseData?.meta ? { title: responseData.meta.title, author: responseData.meta.author, thumbnail: responseData.meta.thumbnail } : {})
                 }
                 break;
 
@@ -92,7 +96,9 @@ export function createResponse(responseType, responseData) {
                 response = {
                     picker: responseData?.picker,
                     audio: responseData?.url,
-                    audioFilename: responseData?.filename
+                    audioFilename: responseData?.filename,
+                    // Forward IG post metadata (caption/author/cover) when present.
+                    ...(responseData?.meta ? { title: responseData.meta.title, author: responseData.meta.author, thumbnail: responseData.meta.thumbnail } : {})
                 }
                 break;
 

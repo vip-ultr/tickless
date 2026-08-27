@@ -189,11 +189,17 @@ def cobalt_extract(url: str, kind: str = "auto") -> dict[str, Any]:
 
     if status in ("tunnel", "redirect"):
         filename = data.get("filename") or data.get("url", "video")
+        # Cobalt now forwards Instagram post metadata (caption/author/cover)
+        # on the response when present. Prefer it so the result card matches the
+        # TikTok one (cover + caption + @author); fall back to the synthetic
+        # filename title otherwise (e.g. single TikTok photo posts).
         return {
-            "title": _clean_filename(filename)[:200],
-            "author": "",
+            "title": (data.get("title") or _clean_filename(filename))[:200],
+            "author": data.get("author") or "",
             "duration": None,
-            "thumbnail": None,
+            # `thumbnail` from Cobalt is the PUBLIC display_url (not the loopback
+            # proxy), so it is safe to pass through directly.
+            "thumbnail": data.get("thumbnail") or None,
             "video_url": data["url"],
             "audio_url": None,
             "width": None,
@@ -205,7 +211,7 @@ def cobalt_extract(url: str, kind: str = "auto") -> dict[str, Any]:
         if not picker:
             raise ExtractionError("no_media")
         items = _normalize_media_items(picker)
-        return _build_gallery_or_single(items, url)
+        return _build_gallery_or_single(items, url, data)
 
     if status == "local-processing":
         tunnels = data.get("tunnel") or []
@@ -233,7 +239,7 @@ def cobalt_extract(url: str, kind: str = "auto") -> dict[str, Any]:
                     "height": None,
                 }
             ]
-        return _build_gallery_or_single(items, url)
+        return _build_gallery_or_single(items, url, data)
 
     raise ExtractionError("extract_failed")
 
@@ -281,11 +287,13 @@ def _normalize_media_items(picker: list[dict]) -> list[dict]:
     return items
 
 
-def _build_gallery_or_single(items: list[dict], url: str = "") -> dict[str, Any]:
+def _build_gallery_or_single(items: list[dict], url: str = "", data: dict | None = None) -> dict[str, Any]:
     if not items:
         raise ExtractionError("no_media")
     photo_count = sum(1 for item in items if item.get("type") == "photo")
     video_count = sum(1 for item in items if item.get("type") != "photo")
+
+    data = data or {}
 
     # Use the post shortcode/id as the naming base so every file is unique
     # per post and reads cleanly (e.g. "Instagram post DbEgdzMDK4g" or
@@ -295,7 +303,19 @@ def _build_gallery_or_single(items: list[dict], url: str = "") -> dict[str, Any]
     tt_code = None
     if not code and "tiktok" in (url or ""):
         tt_code = _tiktok_id(url) or _tiktok_id(_resolve_tiktok_short(url))
-    if code:
+
+    # Cobalt now forwards Instagram post metadata (caption/author/cover) on the
+    # response. When present, prefer it so the card matches the TikTok one
+    # (cover + caption + @author). The forwarded `thumbnail` is the PUBLIC
+    # display_url, so it is used directly (NOT run through _public_thumb, which
+    # only filters loopback proxy URLs).
+    fwd_title = (data.get("title") or "").strip()
+    fwd_author = (data.get("author") or "").strip()
+    fwd_thumb = data.get("thumbnail") or None
+
+    if fwd_title:
+        title = fwd_title[:200]
+    elif code:
         title = f"Instagram post {code}"
     elif tt_code:
         title = f"TikTok post {tt_code}"
@@ -307,6 +327,8 @@ def _build_gallery_or_single(items: list[dict], url: str = "") -> dict[str, Any]
             title_parts.append(f"{photo_count} photo" if photo_count == 1 else f"{photo_count} photos")
         title = ", ".join(title_parts) or "Instagram post"
 
+    author = fwd_author
+
     primary = next((item for item in items if item.get("type") == "video"), None) or items[0]
     all_urls = [item["url"] for item in items]
     all_types = [item.get("type", "video") for item in items]
@@ -315,14 +337,12 @@ def _build_gallery_or_single(items: list[dict], url: str = "") -> dict[str, Any]
     primary_type = primary.get("type", "video")
     result: dict[str, Any] = {
         "title": title[:200],
-        "author": "",
+        "author": author,
         "duration": None,
-        # Thumbnails are the ONLY Cobalt URL the browser loads directly
-        # (media itself is proxied server-side by _proxy_remote_media). With
-        # Cobalt running as a loopback sidecar its tunnel URLs are
-        # 127.0.0.1, which is this container, not the user's machine. Serving
-        # one would render a broken image, so drop non-public thumbnails.
-        "thumbnail": _public_thumb(thumbs[0] if thumbs else primary.get("thumb")),
+        # Use the forwarded public cover when present; otherwise fall back to the
+        # first item's thumb with loopback proxy URLs stripped (those are
+        # 127.0.0.1 sidecar URLs the browser cannot reach).
+        "thumbnail": fwd_thumb or _public_thumb(thumbs[0] if thumbs else primary.get("thumb")),
         "video_url": primary["url"],
         "audio_url": None,
         "width": primary.get("width"),
