@@ -161,15 +161,19 @@ export function ClipEditor() {
   }
 
   // ── trim ──────────────────────────────────────────────────────────────────
-  // Stable handle to the active playback-stopper, so both the toggle button and
-  // the trim-handle change handler can cancel an in-progress selection playback.
+  // Playback state for the selection preview:
+  //   segPlaying = actively playing, segPaused = paused mid-selection.
+  // We keep the timeupdate/ended listeners alive while paused so "Play selection"
+  // resumes from the paused position instead of restarting.
   const segStop = useRef<(() => void) | null>(null);
+  const segPaused = useRef(false);
 
-  function playSelection() {
+  function playSelection(fresh: boolean) {
     const v = videoRef.current;
     if (!v) return;
     const stop = () => {
       setSegPlaying(false);
+      segPaused.current = false;
       v.removeEventListener("timeupdate", onTime);
       v.removeEventListener("ended", stop);
       segStop.current = null;
@@ -180,26 +184,40 @@ export function ClipEditor() {
         stop();
       }
     };
-    v.currentTime = start;
+    // Fresh play (first play, or after the selection changed) starts at `start`.
+    // A resumed play (toggling back from pause) continues from the current time.
+    if (fresh || v.currentTime < start || v.currentTime >= end) v.currentTime = start;
     v.play().catch(() => {});
     setSegPlaying(true);
-    v.addEventListener("timeupdate", onTime);
-    v.addEventListener("ended", stop);
-    segStop.current = stop;
+    segPaused.current = false;
+    if (!segStop.current) {
+      v.addEventListener("timeupdate", onTime);
+      v.addEventListener("ended", stop);
+      segStop.current = stop;
+    }
   }
 
-  // Toggle: play the selection, or pause it if already playing.
-  function togglePlay() {
-    if (segPlaying) segStop.current?.();
-    else playSelection();
-  }
-
-  // If the user moves a trim handle while a selection is playing, stop playback
-  // and snap the playhead back to the (new) selection start, so the next Play is
-  // unambiguous and the frame matches the selection.
-  function pauseForAdjust(newStart: number) {
+  // Pause mid-selection: hold the playhead so Play can resume from here.
+  function pauseSelection() {
     const v = videoRef.current;
-    if (segPlaying) segStop.current?.();
+    if (!v) return;
+    v.pause();
+    setSegPlaying(false);
+    segPaused.current = true;
+  }
+
+  // Toggle: playing -> pause (hold position); paused -> resume; idle -> fresh play.
+  function togglePlay() {
+    if (segPlaying) pauseSelection();
+    else if (segPaused.current) playSelection(false);
+    else playSelection(true);
+  }
+
+  // Moving a trim handle while playing/paused resets the preview: stop entirely and
+  // snap to the new selection start, so the next Play is a fresh preview.
+  function pauseForAdjust(newStart: number) {
+    if (segPlaying || segPaused.current) segStop.current?.();
+    const v = videoRef.current;
     if (v) v.currentTime = newStart;
   }
 
