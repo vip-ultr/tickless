@@ -324,13 +324,19 @@ export function ClipEditor() {
               </button>
             </div>
 
-            <video
-              ref={videoRef}
-              src={source.objectUrl}
-              onLoadedMetadata={onLoadedMetadata}
-              controls
-              className="mt-4 w-full rounded-xl bg-black"
-            />
+            {/* The player is height-capped so a tall portrait video never blows
+                past the viewport on desktop. object-contain keeps the WHOLE clip
+                visible (black letterbox), and the trim controls stay on-screen
+                right below it. Mobile keeps the natural full-width behavior. */}
+            <div className="mt-4 overflow-hidden rounded-xl bg-black">
+              <video
+                ref={videoRef}
+                src={source.objectUrl}
+                onLoadedMetadata={onLoadedMetadata}
+                controls
+                className="mx-auto block max-h-[70vh] w-full object-contain"
+              />
+            </div>
 
             {/* trim handles */}
             <div className="mt-4">
