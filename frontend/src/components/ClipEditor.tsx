@@ -7,6 +7,7 @@ import {
   Upload,
   Loader2,
   Play,
+  Pause,
   Plus,
   Download,
   Trash2,
@@ -89,6 +90,7 @@ export function ClipEditor() {
         setState({ kind: "error", message: b.detail || "Could not read that link." });
         return;
       }
+      
       const data = await res.json();
       // Fetch the clean video to a temp blob we can preview locally.
       const dl = `${API_URL}/api/download?url=${encodeURIComponent(
@@ -159,16 +161,18 @@ export function ClipEditor() {
   }
 
   // ── trim ──────────────────────────────────────────────────────────────────
+  // Stable handle to the active playback-stopper, so both the toggle button and
+  // the trim-handle change handler can cancel an in-progress selection playback.
+  const segStop = useRef<(() => void) | null>(null);
+
   function playSelection() {
     const v = videoRef.current;
     if (!v) return;
-    v.currentTime = start;
-    v.play().catch(() => {});
-    setSegPlaying(true);
     const stop = () => {
       setSegPlaying(false);
       v.removeEventListener("timeupdate", onTime);
       v.removeEventListener("ended", stop);
+      segStop.current = null;
     };
     const onTime = () => {
       if (v.currentTime >= end) {
@@ -176,8 +180,27 @@ export function ClipEditor() {
         stop();
       }
     };
+    v.currentTime = start;
+    v.play().catch(() => {});
+    setSegPlaying(true);
     v.addEventListener("timeupdate", onTime);
     v.addEventListener("ended", stop);
+    segStop.current = stop;
+  }
+
+  // Toggle: play the selection, or pause it if already playing.
+  function togglePlay() {
+    if (segPlaying) segStop.current?.();
+    else playSelection();
+  }
+
+  // If the user moves a trim handle while a selection is playing, stop playback
+  // and snap the playhead back to the (new) selection start, so the next Play is
+  // unambiguous and the frame matches the selection.
+  function pauseForAdjust(newStart: number) {
+    const v = videoRef.current;
+    if (segPlaying) segStop.current?.();
+    if (v) v.currentTime = newStart;
   }
 
   function addClip() {
@@ -352,7 +375,11 @@ export function ClipEditor() {
                   max={max}
                   step={0.1}
                   value={start}
-                  onChange={(e) => setStart(Math.min(Number(e.target.value), end - 0.1))}
+                  onChange={(e) => {
+                    const val = Math.min(Number(e.target.value), end - 0.1);
+                    setStart(val);
+                    pauseForAdjust(val);
+                  }}
                   className="w-full accent-[var(--brand-primary)]"
                   aria-label="Start time"
                 />
@@ -362,7 +389,11 @@ export function ClipEditor() {
                   max={max}
                   step={0.1}
                   value={end}
-                  onChange={(e) => setEnd(Math.max(Number(e.target.value), start + 0.1))}
+                  onChange={(e) => {
+                    const val = Math.max(Number(e.target.value), start + 0.1);
+                    setEnd(val);
+                    pauseForAdjust(start);
+                  }}
                   className="w-full accent-[var(--brand-primary)]"
                   aria-label="End time"
                 />
@@ -371,11 +402,11 @@ export function ClipEditor() {
 
             <div className="mt-4 flex flex-wrap items-center gap-3">
               <button
-                onClick={playSelection}
-                disabled={segPlaying}
+                onClick={togglePlay}
                 className="glass flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-medium hover:tx"
               >
-                <Play size={16} /> Play selection
+                {segPlaying ? <Pause size={16} /> : <Play size={16} />}
+                {segPlaying ? "Pause selection" : "Play selection"}
               </button>
               <label className="flex cursor-pointer items-center gap-2 text-sm tx-muted">
                 <input
