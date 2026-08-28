@@ -99,6 +99,20 @@ export default async function(obj) {
         if (audio.includes("mime_type=audio_mpeg")) bestAudio = 'mp3';
     }
 
+    // Expose the post caption, author, and cover so Tickless can render a
+    // TikTok result the same way it renders Instagram (cover + caption +
+    // @author). Cobalt's core response builder drops everything except
+    // url/thumb, so we stash these on a `meta` object that request.js forwards.
+    // The cover is the PUBLIC image CDN URL the browser can load directly.
+    const cover = detail.imagePost?.images?.[0]?.imageURL?.urlList?.[0]
+        || detail.video?.cover
+        || null;
+    const meta = {
+        title: detail.desc || "",
+        author: detail.author?.uniqueId || detail.author?.nickname || "",
+        thumbnail: cover,
+    };
+
     if (video) {
         let subtitles, fileMetadata;
         if (obj.subtitleLang && detail?.video?.subtitleInfos?.length) {
@@ -118,7 +132,8 @@ export default async function(obj) {
             subtitles,
             fileMetadata,
             filename: videoFilename,
-            headers: { cookie }
+            headers: { cookie },
+            meta,
         }
     }
 
@@ -128,7 +143,8 @@ export default async function(obj) {
             audioFilename: audioFilename,
             isAudioOnly: true,
             bestAudio,
-            headers: { cookie }
+            headers: { cookie },
+            meta,
         }
     }
 
@@ -155,7 +171,8 @@ export default async function(obj) {
             audioFilename: audioFilename,
             isAudioOnly: true,
             bestAudio,
-            headers: { cookie }
+            headers: { cookie },
+            meta,
         }
     }
 

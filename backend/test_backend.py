@@ -88,7 +88,12 @@ def test_filename_basic():
     utf8, ascii_ = build_download_filename(
         "Scramble up ur name & I'll try to guess it", "Scout", "mp4"
     )
-    assert utf8 == "Scout - Scramble up ur name & I'll try to guess it - Tickless.mp4"
+    # Caption portion is capped at 40 chars total (uploader + caption), then
+    # " - Tickless" appended. The exact truncation point depends on the
+    # uploader prefix length, so assert the shape, not the exact cut.
+    assert utf8.startswith("Scout - Scramble up ur name")
+    assert utf8.endswith(" - Tickless.mp4")
+    assert len(utf8) <= 40 + len(" - Tickless.mp4")
     assert ascii_ == utf8  # already ascii
 
 
@@ -117,7 +122,9 @@ def test_filename_empty_title_falls_back_for_youtube():
 
 def test_filename_unicode_gets_ascii_fallback():
     utf8, ascii_ = build_download_filename("café vidéo 日本語", "ユーザー", "mp4")
-    assert utf8 == "ユーザー - café vidéo 日本語 - Tickless.mp4"
+    # Caption portion capped at 40 chars, then " - Tickless" appended.
+    assert utf8.startswith("ユーザー - café vidéo 日本語")
+    assert utf8.endswith(" - Tickless.mp4")
     assert ascii_.isascii()
     assert ascii_.endswith("Tickless.mp4")
 
@@ -125,7 +132,20 @@ def test_filename_unicode_gets_ascii_fallback():
 def test_filename_length_capped():
     utf8, _ = build_download_filename("x" * 300, "verylonguploader", "mp4")
     stem = utf8.rsplit(".", 1)[0]
-    assert len(stem) <= 80 + len(" - Tickless")
+    assert len(stem) <= 40 + len(" - Tickless")
+
+
+def test_filename_gallery_index_survives_long_caption():
+    # Regression: the per-gallery _N suffix must be appended AFTER the caption
+    # cap, so multi-image posts get unique filenames even with long captions.
+    long_caption = "Mutlu pazarlar pazar modunuz hangisi 1,2,…12? Photo credit @byhake & @numanuk #pazarkeyfi"
+    base, _ = build_download_filename(long_caption, "hergun1yer", "jpg", index=0)
+    second, _ = build_download_filename(long_caption, "hergun1yer", "jpg", index=1)
+    assert base != second
+    assert base.endswith("_1 - Tickless.jpg")
+    assert second.endswith("_2 - Tickless.jpg")
+    # Index suffix is not truncated away by the 40-char caption cap.
+    assert "_1" in base and "_2" in second
 
 
 # ---- visit analytics ----

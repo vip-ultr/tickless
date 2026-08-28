@@ -134,16 +134,25 @@ async def debug_yt_cookie_state():
 _FILENAME_FORBIDDEN = re.compile(r'[<>:"/\\|?*\x00-\x1f]')
 # Hashtag tokens (with the tag text) - stripped, they are noise in filenames.
 _HASHTAG = re.compile(r"#\S+")
+# Max length of the caption-derived title portion of a download filename.
+# Kept short so long TikTok/Instagram captions don't blow out the name; the
+# per-gallery index suffix (_N) is appended after this cap, so it always fits.
+_FILENAME_TITLE_CAP = 40
 
 
 def build_download_filename(
-    title: str, uploader: str, ext: str, platform: str = "tiktok"
+    title: str, uploader: str, ext: str, platform: str = "tiktok", index: int | None = None
 ) -> tuple[str, str]:
     """Build a clean, human-readable filename for the user's device.
 
     Pattern: "<uploader> - <title> - Tickless.<ext>" with graceful fallbacks
     when parts are missing. Returns (utf8_name, ascii_fallback) for the
     Content-Disposition filename*= and filename= fields respectively.
+
+    The caption-derived title is capped to _FILENAME_TITLE_CAP characters so
+    long captions don't blow out the filename. The per-gallery index suffix
+    (_N) is appended AFTER the cap, so it always survives regardless of how
+    long the caption is.
     """
     title = _HASHTAG.sub("", title or "")
     # Collapse whitespace, strip filesystem-forbidden characters.
@@ -154,13 +163,17 @@ def build_download_filename(
         if s:
             parts.append(s)
 
-    # Keep the total stem comfortably under filesystem limits.
-    stem = " - ".join(parts)[:80].rstrip(" .-_")
+    # Keep the title portion comfortably under filesystem limits.
+    stem = " - ".join(parts)[:_FILENAME_TITLE_CAP].rstrip(" .-_")
     if not stem:
         if platform == "youtube":
             stem = "youtube video" if ext == "mp4" else "youtube audio"
         else:
             stem = "tiktok video" if ext == "mp4" else "tiktok audio"
+    # Per-gallery index suffix (e.g. _1, _2) — added AFTER the cap so it is
+    # never truncated away, guaranteeing unique names for multi-image posts.
+    if index is not None:
+        stem = f"{stem}_{index + 1}"
     stem = f"{stem} - Tickless"
 
     utf8_name = f"{stem}.{ext}"
@@ -488,11 +501,11 @@ async def api_download(
     else:
         media_type = "video/mp4"
 
-    # Gallery-aware unique filename
+    # Gallery-aware unique filename. The index suffix is applied inside
+    # build_download_filename AFTER the caption cap, so it is never truncated
+    # away even for long captions (fixes identical names on multi-image posts).
     stem = title or "tickless-download"
-    if gallery_index is not None:
-        stem = f"{stem}_{gallery_index + 1}"
-    utf8_name, ascii_name = build_download_filename(stem, uploader, real_ext)
+    utf8_name, ascii_name = build_download_filename(stem, uploader, real_ext, index=gallery_index)
 
     # Count the completed download per platform (non-blocking, never fails).
     record_download(platform, kind)
