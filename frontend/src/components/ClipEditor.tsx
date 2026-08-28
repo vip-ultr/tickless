@@ -213,12 +213,17 @@ export function ClipEditor() {
     else playSelection(true);
   }
 
-  // Moving a trim handle while playing/paused resets the preview: stop entirely and
-  // snap to the new selection start, so the next Play is a fresh preview.
+  // Moving a trim handle while playing/paused stops playback entirely and snaps to
+  // the new selection start, so the button returns to "Play selection" and the next
+  // Play is a fresh preview (editor convention: scrubbing halts playback).
   function pauseForAdjust(newStart: number) {
-    if (segPlaying || segPaused.current) segStop.current?.();
     const v = videoRef.current;
-    if (v) v.currentTime = newStart;
+    if (segPlaying || segPaused.current) segStop.current?.();
+    // Actually halt the <video> element — clearing state alone leaves it running.
+    if (v) {
+      v.pause();
+      v.currentTime = newStart;
+    }
   }
 
   function addClip() {
