@@ -1,0 +1,51 @@
+# This file is used to build the infrastructure for a deployment.
+# After editing something here, apply the changes on the Diploi dashboard.
+# For more information, see https://diploi.com/yaml
+
+diploiVersion: v1.0
+components:
+  - hosts:
+      - port: 3000
+        endpoint: true
+        name: Frontend
+        identifier: app
+    name: Frontend
+    identifier: frontend
+    folder: /frontend
+    package: https://github.com/diploi/component-nextjs#v16.3.3
+    containerCommands:
+      productionStart: pnpm start
+      developmentStart: pnpm dev
+    env:
+      include:
+        - value: ''
+          name: NEXT_PUBLIC_API_URL
+  - hosts:
+      - port: 8000
+        endpoint: true
+        name: Backend API
+        identifier: app
+    name: Backend
+    identifier: backend
+    folder: /backend
+    package: https://github.com/diploi/component-fastapi#v0.136.1
+    containerCommands:
+      productionStart: uv run --with uvicorn uvicorn main:app --host 0.0.0.0 --port 8000 --proxy-headers
+      developmentStart: uv run --with uvicorn uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+    env:
+      include:
+        - value: '3.12'
+          name: PYTHON_VERSION
+        - value: '8000'
+          name: PORT
+        - value: '9000'
+          name: COBALT_PORT
+        - value: http://127.0.0.1:9000
+          name: COBALT_URL
+        - value: http://127.0.0.1:9000/
+          name: API_URL
+        - value: http://127.0.0.1:4416
+          name: POT_PROVIDER_URL
+        - value: http://localhost:3000
+          name: ALLOWED_ORIGINS
+addons: []

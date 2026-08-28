@@ -12,6 +12,7 @@
 ![Frontend: Next.js](https://img.shields.io/badge/frontend-Next.js-black)
 ![Backend: FastAPI](https://img.shields.io/badge/backend-FastAPI-009688)
 ![No paid APIs](https://img.shields.io/badge/no%20paid%20APIs-ok-brightgreen)
+[![launch with diploi badge](https://diploi.com/launch.svg)](https://diploi.com/launch/vip-ultr/tickless)
 
 </div>
 
@@ -101,7 +102,29 @@ tickless/
 
 ## Quick start
 
-### Backend
+### Option 1: Deploy with Diploi
+
+[![launch with diploi button](https://diploi.com/launch-big.svg)](https://diploi.com/launch/vip-ultr/tickless)
+
+Diploi uses the included [`diploi.yaml`](./diploi.yaml) for deployment configuration.
+
+1. Launch the project
+
+Click the launch button above to create a new Diploi deployment. A successful import in Diploi should contain 2 components (Next.js and FastAPI).
+
+2. Add environment variables
+
+Open the Environment tab in the sidebar and add any required variables. 
+
+3. View the deployment
+
+Open the frontend preview URL from your Diploi deployment page.
+
+For more information, visit [diploi.com](https://diploi.com/).
+
+### Option 2: Run locally
+
+#### Backend
 
 ```bash
 cd backend
@@ -111,7 +134,7 @@ cp .env.example .env        # fill values (API key optional locally)
 uvicorn main:app --reload   # http://127.0.0.1:8000
 ```
 
-### Frontend
+#### Frontend
 
 ```bash
 cd frontend
@@ -121,7 +144,7 @@ pnpm dev                    # http://localhost:3000
 
 Point the frontend at your backend with `NEXT_PUBLIC_API_URL`.
 
-### Cobalt (Instagram)
+#### Cobalt (Instagram)
 
 Built into the backend image from `backend/cobalt/` and started as a loopback sidecar
 by `backend/start.sh`; it is not a separate Render service. The backend
