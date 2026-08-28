@@ -36,6 +36,10 @@ export default function({
             subtitles: r.subtitles,
             cover: !disableMetadata ? r.cover : false,
             cropCover: !disableMetadata ? r.cropCover : false,
+            // Forward IG post metadata (caption/author/cover) stashed by the
+            // instagram service. request.js copies it onto the response when
+            // present; ignored by every other service.
+            meta: r.meta,
         },
         params = {};
 

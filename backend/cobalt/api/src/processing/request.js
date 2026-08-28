@@ -78,6 +78,13 @@ export function createResponse(responseType, responseData) {
                     isHLS: responseData?.isHLS,
                 }
 
+                // Forward IG post metadata (caption/author/cover) when present.
+                if (responseData?.meta) {
+                    response.title = responseData.meta.title;
+                    response.author = responseData.meta.author;
+                    response.thumbnail = responseData.meta.thumbnail;
+                }
+
                 if (!response.audio.format) {
                     if (response.type === "audio") {
                         // audio response without a format is invalid
