@@ -189,6 +189,25 @@ def cobalt_extract(url: str, kind: str = "auto") -> dict[str, Any]:
 
     if status in ("tunnel", "redirect"):
         filename = data.get("filename") or data.get("url", "video")
+        # A single Instagram image post comes back as a redirect whose `url`
+        # is a public image CDN link (we switched IG photos to `redirect` so
+        # the backend can proxy it). Surface it as a photo so the frontend
+        # renders an image card (not a video with a stray Audio button).
+        url = data.get("url", "")
+        is_image = bool(re.search(r"\.(jpg|jpeg|png|webp|bmp|gif)(\?|$)", url, re.I))
+        if is_image and "instagram" in (url or ""):
+            return {
+                "title": (data.get("title") or _clean_filename(filename))[:200],
+                "author": data.get("author") or "",
+                "duration": None,
+                "thumbnail": data.get("thumbnail") or url,
+                "video_url": None,
+                "audio_url": None,
+                "width": None,
+                "height": None,
+                "photo_urls": [url],
+                "gallery_types": ["photo"],
+            }
         # Cobalt now forwards Instagram post metadata (caption/author/cover)
         # on the response when present. Prefer it so the result card matches the
         # TikTok one (cover + caption + @author); fall back to the synthetic

@@ -71,7 +71,14 @@ export default function({
             });
 
         case "photo":
+            // Instagram image CDNs set `Cross-Origin-Resource-Policy:
+            // same-origin`, so the browser can't load them directly. Return the
+            // PUBLIC url as a `redirect` and let Tickless's backend proxy it
+            // (same path as IG videos and carousel items), instead of Cobalt's
+            // loopback `tunnel` URL which neither the browser nor the backend
+            // proxy can reach. This fixes single-image IG posts failing to load.
             params = { type: "proxy" };
+            if (host === "instagram") responseType = "redirect";
             break;
 
         case "gif":

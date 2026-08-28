@@ -17,6 +17,7 @@ type Result = {
   platform?: "tiktok" | "instagram";
   gallery?: string[];
   gallery_types?: string[];
+  photo_urls?: string[];
 };
 
 type State =
@@ -166,8 +167,15 @@ function ResultCard({ data, sourceUrl, onReset }: { data: Result; sourceUrl: str
   const gallery = data.gallery ?? [];
   const hasGallery = gallery.length > 1;
   const galleryTypes = data.gallery_types ?? [];
+  const photoUrls = data.photo_urls ?? [];
 
-  const itemType = hasGallery ? (galleryTypes[selectedGalleryIndex] || "video") : "video";
+  // A single-image Instagram post has exactly one photo and no video: render it
+  // as a photo (no stray Audio button), not as a video.
+  const itemType = photoUrls.length === 1 && !data.video_url
+    ? "photo"
+    : hasGallery
+      ? (galleryTypes[selectedGalleryIndex] || "video")
+      : "video";
 
   const key = process.env.NEXT_PUBLIC_API_KEY || "";
   const dl = (kind: "video" | "audio", idx?: number) => {

@@ -285,6 +285,63 @@ def test_cobalt_picker_multi_item_photo_and_video(monkeypatch, tmp_path):
     assert photo_only["thumbnail"] == "https://example.com/ta.jpg", photo_only
 
 
+def test_cobalt_single_instagram_photo_redirect_is_proxyable(monkeypatch):
+    """A single-image Instagram post returns a `redirect` with a PUBLIC image
+    CDN url (not Cobalt's loopback tunnel). Tickless proxies it through the
+    backend, so it must surface as a photo with no video_url and must NOT be a
+    127.0.0.1 loopback url the browser/backend can't reach."""
+
+    def fake_urlopen(req, timeout=None):
+        import json
+        from urllib.request import Request
+        data = getattr(req, "data", None)
+        body = json.loads(data.decode()) if data else {}
+        url = body.get("url", "")
+        if "DcY2PLORchJ" in url:
+            payload = {
+                "status": "redirect",
+                "url": "https://instagram.fna.fbcdn.net/v/t51.82787-15/photo_n.jpg?oh=abc",
+                "filename": "instagram_DcY2PLORchJ.jpg",
+                "title": "My single beach photo",
+                "author": "someuser",
+                "thumbnail": "https://instagram.fna.fbcdn.net/v/cover.jpg",
+            }
+        else:
+            payload = {"status": "error", "error": {"code": "invalid-url"}}
+
+        class FakeResp:
+            def read(self):
+                return json.dumps(payload).encode()
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, exc_type, exc, tb):
+                return False
+
+        return FakeResp()
+
+    import cobalt_client as _cc
+    monkeypatch.setenv("COBALT_URL", "https://tickless-cobalt.onrender.com")
+    monkeypatch.setattr("urllib.request.urlopen", fake_urlopen)
+    import importlib
+    importlib.reload(_cc)
+
+    single = _cc.cobalt_extract(
+        "https://www.instagram.com/p/DcY2PLORchJ/?igsi=MWRoNWllMG5wNzRuZQ=="
+    )
+    assert single["video_url"] is None, single
+    assert single["photo_urls"] == [
+        "https://instagram.fna.fbcdn.net/v/t51.82787-15/photo_n.jpg?oh=abc"
+    ], single
+    assert single["gallery_types"] == ["photo"], single
+    assert single["title"] == "My single beach photo", single
+    assert single["author"] == "someuser", single
+    # Must be a public url the backend can proxy, NOT a loopback tunnel.
+    assert "127.0.0.1" not in single["photo_urls"][0], single
+    assert "localhost" not in single["photo_urls"][0], single
+
+
 @pytest.mark.live
 def test_live_instagram_extraction():
     """Only runs when an IG session cookie is configured."""
