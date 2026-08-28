@@ -93,6 +93,46 @@ if [ "$i" -ge 60 ]; then
     exit 1
 fi
 
+# If a proxy is configured, verify it actually gives Cobalt a working route to
+# Instagram end-to-end (not just TCP-open). A dead-but-listening proxy, or an
+# IG-blocked proxy IP, would otherwise surface as silent no_media errors for
+# users. We ask Cobalt itself (it already carries the proxy env) to extract a
+# KNOWN-LIVE public post; a media response proves the proxy works. This block
+# only runs in proxy mode, so direct connections and all other features are
+# unaffected. Post-specific errors (deleted/private) warn but don't fail boot.
+if [ -n "$COBALT_HTTP_PROXY" ] || [ -n "$COBALT_HTTPS_PROXY" ]; then
+    CANARY="https://www.instagram.com/p/DcYOY-yDP_U/?img_index=1"
+    echo "[start] proxy self-test: extracting a known public IG post through the proxy..."
+    PROBE=$(curl -s -m 40 -X POST "http://127.0.0.1:${COBALT_PORT:-9000}/" \
+        -H "Content-Type: application/json" \
+        -d "{\"url\":\"$CANARY\",\"downloadMode\":\"auto\",\"videoQuality\":\"1080\"}" 2>/dev/null || true)
+    STATUS=$(printf '%s' "$PROBE" | python3 -c "import sys,json; \
+        try: print(json.load(sys.stdin).get('status','?')) \
+        except Exception: print('parse-error')" 2>/dev/null || echo "parse-error")
+    ERRCODE=$(printf '%s' "$PROBE" | python3 -c "import sys,json; \
+        try:
+            d=json.load(sys.stdin); e=d.get('error') or {}; \
+            print(e.get('code','') if isinstance(e,dict) else '') \
+        except Exception: print('')" 2>/dev/null || true)
+    case "$STATUS" in
+        redirect|picker|tunnel|local-processing)
+            echo "[start] proxy self-test PASSED (IG reachable through proxy: $STATUS)" ;;
+        error)
+            # Post-specific errors mean the proxy likely works but this canary
+            # post is gone/private; don't fail boot over a stale test post.
+            case "$ERRCODE" in
+                post-not-found|cobalt.post-not-found|content.post.private|content.post.age|content.post.unavailable)
+                    echo "[start] WARNING: proxy self-test hit a post-specific error ($ERRCODE); IG may still be reachable. Continuing." ;;
+                *)
+                    echo "[start] FATAL: proxy self-test failed: IG unreachable through proxy (status=error, code=${ERRCODE:-unknown})" >&2
+                    exit 1 ;;
+            esac ;;
+        *)
+            echo "[start] FATAL: proxy self-test inconclusive (status=$STATUS); proxy likely not routing to IG" >&2
+            exit 1 ;;
+    esac
+fi
+
 # 3. The API. Runs in the foreground as PID 1's child so Render tracks it.
 pip install --no-cache-dir --upgrade yt-dlp >/dev/null 2>&1 || true
 exec uvicorn main:app --host 0.0.0.0 --port "${PORT:-8000}"
