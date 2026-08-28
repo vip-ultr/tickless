@@ -21,8 +21,39 @@ export PATH="$PATH:/usr/bin:/usr/local/bin"
 #    (the old separate service only ever showed deploy logs, which is why
 #    Cobalt failures were invisible).
 cd /cobalt-api
+# Instagram rate-limits self-hosted Cobalt by server IP. To beat that, route
+# Cobalt's OUTBOUND Instagram fetches through a proxy. We scope the proxy to the
+# Cobalt sidecar ONLY (via COBALT_HTTP_PROXY / COBALT_HTTPS_PROXY on the Render
+# service) and keep loopback out of it (NO_PROXY), so the backend's own
+# loopback Cobalt call, yt-dlp (TikTok/YouTube), and YouTube PO-token provider
+# are never proxied. Left empty = direct connection (current behaviour; IG may
+# rate-limit). Cobalt honours these via undici's EnvHttpProxyAgent.
+COBALT_HTTP_PROXY="${COBALT_HTTP_PROXY:-}"
+COBALT_HTTPS_PROXY="${COBALT_HTTPS_PROXY:-${COBALT_HTTP_PROXY}}"
+if [ -n "$COBALT_HTTP_PROXY" ] || [ -n "$COBALT_HTTPS_PROXY" ]; then
+    echo "[start] Cobalt outbound proxy ENABLED (IG fetches routed via proxy)"
+    # Fail loudly if the proxy is configured but unreachable, instead of serving
+    # silent IG no_media errors. Parse host:port and probe it (TCP, 5s).
+    PROXY_HOST=$(printf '%s' "${COBALT_HTTPS_PROXY:-$COBALT_HTTP_PROXY}" | sed -E 's#^[a-zA-Z0-9]+://##; s#/.*$##; s#^[^@]*@##; s#:[0-9]+$##')
+    PROXY_PORT=$(printf '%s' "${COBALT_HTTPS_PROXY:-$COBALT_HTTP_PROXY}" | sed -E 's#^[a-zA-Z0-9]+://##; s#/.*$##; s#^[^@]*@##; s#^[^:]+:##; s#[^0-9]##g')
+    PROXY_PORT="${PROXY_PORT:-3128}"
+    if command -v nc >/dev/null 2>&1; then
+        if ! nc -z -w 5 "$PROXY_HOST" "$PROXY_PORT" 2>/dev/null; then
+            echo "[start] FATAL: COBALT proxy $PROXY_HOST:$PROXY_PORT is unreachable" >&2
+            exit 1
+        fi
+        echo "[start] proxy reachability check passed ($PROXY_HOST:$PROXY_PORT)"
+    else
+        echo "[start] WARNING: nc not available; skipping proxy reachability check"
+    fi
+else
+    echo "[start] Cobalt outbound proxy DISABLED (direct connection; IG may rate-limit)"
+fi
 API_URL="${API_URL:-http://127.0.0.1:9000/}" \
 PORT="${COBALT_PORT:-9000}" \
+HTTP_PROXY="$COBALT_HTTP_PROXY" \
+HTTPS_PROXY="$COBALT_HTTPS_PROXY" \
+NO_PROXY="127.0.0.1,localhost" \
     node src/cobalt 2>&1 | sed 's/^/[cobalt] /' &
 COBALT_PID=$!
 

@@ -282,10 +282,14 @@ async def health_cobalt():
     try:
         with urllib.request.urlopen(f"{cobalt_url}/", timeout=10) as resp:
             body = _json.loads(resp.read().decode("utf-8", "replace"))
+        # Surface whether Cobalt's outbound IG proxy is configured, so a missing
+        # proxy (the usual cause of IG rate-limit no_media) is visible at a glance.
+        proxy = os.getenv("COBALT_HTTPS_PROXY") or os.getenv("COBALT_HTTP_PROXY") or ""
         return {
             "status": "ok",
             "cobalt_version": (body.get("cobalt") or {}).get("version"),
             "url": cobalt_url,
+            "instagram_proxy": proxy or "disabled",
         }
     except Exception as e:
         return JSONResponse(
