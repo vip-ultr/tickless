@@ -47,7 +47,7 @@ export function Footer() {
         <p className="mt-10 border-t border-[var(--glass-border)] pt-6 text-xs tx-muted">
           (c) 2026 Tickless by{" "}
           <a
-            href="https://optivislabs.vercel.app"
+            href="https://optivislabs.com"
             target="_blank"
             rel="noopener noreferrer"
             className="underline hover:tx"
