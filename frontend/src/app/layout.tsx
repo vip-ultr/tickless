@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import { Analytics } from "@vercel/analytics/next";
 import { VisitBeacon } from "@/components/VisitBeacon";
 import { InstallPrompt } from "@/components/InstallPrompt";
 import "./globals.css";
@@ -62,6 +63,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <VisitBeacon />
         <InstallPrompt />
         {children}
+        <Analytics />
       </body>
     </html>
   );
