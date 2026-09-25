@@ -55,8 +55,94 @@ const getObjectFromEntries = (name, data) => {
     return obj && JSON.parse(obj);
 }
 
+const decodeEntities = (s) => (s || "")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#0?64;/g, "@")
+    .replace(/&#0?39;|&#x27;|&apos;/g, "'")
+    .replace(/&nbsp;/g, " ")
+    // last, so "&amp;#064;" still decodes to "@"
+    .replace(/&amp;/g, "&");
+
+/*
+** Last resort for single-image instagram posts.
+**
+** the embed page (/p/<id>/embed/captioned/) only ships a structured
+** `contextJSON` blob for sidecars. static images come back with
+** `contextJSON: null` / `isRichEmbed: false`, so every stage of getPost()'s
+** cascade (mobile api, embed json, web graphql) comes back empty — even
+** though the image itself is sitting right there in the markup as
+** `<img class="EmbeddedMediaImage">`.
+**
+** this scrapes that markup and rebuilds the same `shortcode_media` shape
+** extractOldPost() already consumes, so filenames, `isPhoto` -> redirect and
+** the meta (caption/@author/cover) forwarding all stay untouched.
+**
+** it is strictly a fallback: it only runs after every structured stage has
+** failed, and it refuses anything that isn't a static `GraphImage`, so
+** carousels (populated contextJSON) and reels (no EmbeddedMediaImage is
+** rendered at all) keep taking their existing paths.
+*/
+// exported for the offline regression test in backend/test_backend.py
+export function parseEmbedMarkup(html, id) {
+    if (!html) return;
+
+    const embedDiv = html.match(/<div class="Embed"[^>]*>/)?.[0];
+
+    // static images only — video / sidecar / guide / profile embeds must keep
+    // using the structured stages above this fallback.
+    const mediaType = embedDiv?.match(/data-media-type="([^"]+)"/)?.[1];
+    if (mediaType !== "GraphImage") return;
+
+    // attribute order on the <img> isn't stable, so locate the tag first.
+    const imgTag = [...html.matchAll(/<img\b[^>]*>/g)]
+        .map(m => m[0])
+        .find(tag => /class="[^"]*EmbeddedMediaImage/.test(tag));
+
+    const imageUrl = decodeEntities(imgTag?.match(/\ssrc="([^"]+)"/)?.[1]);
+    if (!imageUrl?.startsWith("http")) return;
+
+    const captionBlock = html.match(
+        /<div class="Caption">([\s\S]*?)(?:<div class="CaptionComments"|<div class="Footer")/
+    )?.[1];
+
+    const username = (captionBlock?.match(/class="CaptionUsername"[^>]*>([^<]*)</) || [])[1]?.trim()
+        || html.match(/data-ios-link="user\?username=([A-Za-z0-9._]+)/)?.[1]
+        || imgTag?.match(/\salt="[^"]*(?:&#064;|@)([A-Za-z0-9._]+)/)?.[1]
+        || "";
+
+    const caption = decodeEntities(
+        (captionBlock || "")
+            // links (username / hashtags) are markup, not caption text
+            .replace(/<a\b[^>]*>[\s\S]*?<\/a>/g, "")
+            .replace(/<br\s*\/?>/gi, "\n")
+            .replace(/<[^>]+>/g, "")
+            .trim()
+    ).trim();
+
+    return {
+        __typename: "GraphImage",
+        id: embedDiv?.match(/data-media-id="(\d+)"/)?.[1] || "",
+        shortcode: id,
+        is_video: false,
+        display_url: imageUrl,
+        owner: {
+            id: embedDiv?.match(/data-owner-id="(\d+)"/)?.[1] || "",
+            username
+        },
+        edge_media_to_caption: {
+            edges: caption ? [{ node: { text: caption } }] : []
+        }
+    };
+}
+
 export default function instagram(obj) {
     const dispatcher = obj.dispatcher;
+
+    // raw markup of the most recent embed page fetched for this request, so
+    // the single-image fallback below doesn't have to pay for a second fetch.
+    let lastEmbedHtml = "", lastEmbedId;
 
     async function findDtsgId(cookie) {
         try {
@@ -144,13 +230,24 @@ export default function instagram(obj) {
             dispatcher
         }).then(r => r.text()).catch(() => {});
 
-        let embedData = JSON.parse(data?.match(/"init",\[\],\[(.*?)\]\],/)[1]);
+        // keep the raw markup: getPost()'s single-image fallback reuses it
+        // instead of requesting the embed page a second time.
+        lastEmbedHtml = data || "";
+        lastEmbedId = id;
 
-        if (!embedData || !embedData?.contextJSON) return false;
+        const init = data?.match(/"init",\[\],\[(.*?)\]\],/)?.[1];
+        if (!init) return false;
 
-        embedData = JSON.parse(embedData.contextJSON);
-
-        return embedData;
+        let embedData;
+        try {
+            embedData = JSON.parse(init);
+            if (!embedData?.contextJSON) return false;
+            return JSON.parse(embedData.contextJSON);
+        } catch {
+            // a malformed/unexpected payload must not abort getPost()'s cascade
+            // (and skip the graphql stage) the way a bare throw would.
+            return false;
+        }
     }
 
     async function getGQLParams(id, cookie) {
@@ -443,6 +540,26 @@ export default function instagram(obj) {
         }
     }
 
+    // Runs only when every structured stage above has come back empty (or
+    // produced no media). Returns undefined unless the embed markup really
+    // does hold a static GraphImage, so callers keep their existing errors.
+    async function extractEmbedFallback(id, alwaysProxy) {
+        try {
+            let html = lastEmbedId === id ? lastEmbedHtml : "";
+            if (!html) {
+                html = await fetch(`https://www.instagram.com/p/${id}/embed/captioned/`, {
+                    headers: embedHeaders,
+                    dispatcher
+                }).then(r => r.text()).catch(() => "");
+            }
+
+            const node = parseEmbedMarkup(html, id);
+            if (!node) return;
+
+            return extractOldPost({ gql_data: { shortcode_media: node } }, id, alwaysProxy);
+        } catch {}
+    }
+
     async function getPost(id, alwaysProxy) {
         const hasData = (data) => data
                                     && data.gql_data !== null
@@ -475,17 +592,20 @@ export default function instagram(obj) {
             if (!hasData(data) && cookie) data = await requestGQL(id, cookie);
         } catch {}
 
+        if (hasData(data)) {
+            if (data?.gql_data) result = extractOldPost(data, id, alwaysProxy);
+            else result = extractNewPost(data, id, alwaysProxy);
+            if (result) return result;
+        }
+
+        // nothing structured to work with: single-image posts only expose the
+        // file through the embed markup (see parseEmbedMarkup).
+        const fallback = await extractEmbedFallback(id, alwaysProxy);
+        if (fallback) return fallback;
+
         if (!hasData(data)) {
             return getErrorContext(id);
         }
-
-        if (data?.gql_data) {
-            result = extractOldPost(data, id, alwaysProxy)
-        } else {
-            result = extractNewPost(data, id, alwaysProxy)
-        }
-
-        if (result) return result;
         return { error: "fetch.empty" }
     }
 

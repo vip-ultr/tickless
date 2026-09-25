@@ -342,6 +342,80 @@ def test_cobalt_single_instagram_photo_redirect_is_proxyable(monkeypatch):
     assert "localhost" not in single["photo_urls"][0], single
 
 
+def test_ig_single_image_embed_markup_fallback(tmp_path):
+    """Regression for single-image Instagram posts.
+
+    Instagram's embed page returns `contextJSON: null` for static images, so
+    every structured stage of Cobalt's cascade comes back empty even though the
+    file is right there in the markup as <img class="EmbeddedMediaImage">.
+    parseEmbedMarkup() scrapes it — and must REFUSE anything else (sidecars
+    and reels already have working paths that must not be hijacked).
+
+    Runs offline against a real embed page saved in backend/fixtures/.
+    """
+    import json
+    import re
+    import shutil
+    import subprocess
+    from pathlib import Path
+
+    if not shutil.which("node"):
+        pytest.skip("node not available")
+
+    here = Path(__file__).parent
+    helper = here / "ig_embed_parse.mjs"
+
+    def parse(html: str, post_id: str = "DdnQSuFtdet") -> dict | None:
+        """Run one embed page through the sidecar's parser."""
+        f = tmp_path / "embed.html"
+        f.write_text(html)
+        out = subprocess.run(
+            ["node", str(helper), str(f), post_id],
+            capture_output=True, text=True, timeout=60,
+            # cobalt/api owns the package.json that scopes the vendored ESM
+            # tree; backend/ has none, and node refuses to resolve it without
+            # a package root.
+            cwd=here / "cobalt" / "api",
+        )
+        assert out.returncode == 0, out.stderr
+        return json.loads(out.stdout)
+
+    fixtures = here / "fixtures"
+    single = (fixtures / "instagram_embed_single_image.html").read_text()
+
+    # 1. the single-image post that used to fail
+    node = parse(single)
+    assert node is not None, "single-image embed markup must yield a node"
+    assert node["shortcode"] == "DdnQSuFtdet"
+    assert node["id"] == "3992231249869920173"
+    assert node["owner"]["id"] == "59967770359"
+    assert node["owner"]["username"] == "soy_melnynsport"
+    assert node["is_video"] is False
+    assert node["display_url"].startswith("https://")
+    assert "cdninstagram" in node["display_url"]
+    # markup carries "&amp;" separators; they must be decoded
+    assert "&amp;" not in node["display_url"]
+    caption = node["edge_media_to_caption"]["edges"][0]["node"]["text"]
+    assert "Qloq" in caption, caption
+
+    # 2. a sidecar must be refused — it is served through contextJSON already
+    sidecar = (fixtures / "instagram_embed_sidecar.html").read_text()
+    assert parse(sidecar, "DduBwAMDPgS") is None
+
+    # 3a. no <img class="EmbeddedMediaImage"> -> nothing to offer
+    no_img = re.sub(r"<img\b[^>]*EmbeddedMediaImage[^>]*>", "", single, count=1)
+    assert "EmbeddedMediaImage" not in no_img
+    assert parse(no_img) is None
+
+    # 3b. a video post must be refused (markup only exposes a poster frame)
+    video = single.replace('data-media-type="GraphImage"', 'data-media-type="GraphVideo"')
+    assert "GraphVideo" in video
+    assert parse(video) is None
+
+    # 3c. reel-style page with no <div class="Embed"> at all must be refused
+    assert parse("<html><body>reel page</body></html>") is None
+
+
 @pytest.mark.live
 def test_live_instagram_extraction():
     """Only runs when an IG session cookie is configured."""
