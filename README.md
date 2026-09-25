@@ -93,10 +93,12 @@ them removes that failure mode: there is no second service left to be asleep.
 
 ```
 tickless/
-  frontend/   Next.js app (deploys to Vercel)
-  backend/    FastAPI service + Cobalt sidecar (deploys to Render)
-    backend/cobalt/  Cobalt source, built into the image
-  docs/       Product plan and legal posture
+  frontend/    Next.js app - deploys to Vercel
+  backend/     FastAPI service - deploys to Render, one container
+    cobalt/    Cobalt source, built into the backend image (Instagram path)
+    fixtures/  Saved Instagram embed pages used by the offline tests
+  docs/        Product plan, feature plans, and legal posture
+  .github/     CI workflow
 ```
 
 ## Quick start
@@ -158,10 +160,15 @@ posture](./docs/legal-posture.md) explains how we think about risk.
 
 ## Status
 
-Actively developed. TikTok and Instagram downloads are live, and **Clip** (manual
-multi-segment trimming + audio-only extraction, from a pasted link or an uploaded
-file) is live. Photo-carousel to video, more platforms, and richer quality options
-are on the roadmap.
+Actively developed, and live at [tickless.vercel.app](https://tickless.vercel.app).
+
+**Shipping today:** TikTok and Instagram downloads — video, Reels, carousels and
+single photos — with clean filenames and a gallery picker for multi-image posts.
+**Clip** is live too: trim one source into as many manual segments as you want,
+video or audio-only, from a pasted link or an uploaded file.
+
+**On the roadmap:** photo-carousel to video, more platforms, and richer quality
+options.
 
 ## License
 

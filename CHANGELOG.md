@@ -56,7 +56,7 @@ agree.
 - README attribution now links to `optivislabs.com`; unused Next.js boilerplate
   SVGs removed from `public/`.
 
-## [0.7.0] - 2026-08-28
+## [0.6.0] - 2026-08-28
 
 Instagram reliability pass, plus Clip editor interaction fixes.
 
@@ -80,29 +80,6 @@ Instagram reliability pass, plus Clip editor interaction fixes.
 - Clip: Play/Pause now truly pauses and resumes, and the player only resets
   when the selected range changes — not on every handle move.
 - Clip editor video height capped so it stays responsive on desktop.
-
-## [0.6.0] - 2026-08-24
-
-The native mobile app.
-
-### Added
-
-- `mobile/` — a native **Expo (SDK 57) React Native app**, delivered through
-  milestone M4: a four-tab native shell, brand identity carried over from the
-  web app (icon, logo, feature strip), the Geist type family app-wide, and a
-  haptics + toast notification pass.
-- M1 download flow that really saves files into the Tickless album, an
-  Instagram gallery carousel, and ad banners.
-- M2 clip editor on mobile: link or device source, segments, export to album.
-- Documentation: mobile app research, plan and hand-off, plus the locked
-  decision to embed the API key in the app exactly as the web app does.
-
-### Changed
-
-- Tab bar rebuilt the X/Instagram-style glass dock, positioned from real OS
-  safe-area insets, with glass cards and panels matching the web build.
-- Pinned `react-native-worklets@0.10.4`, which `react-native-reanimated@4.5.1`
-  requires.
 
 ## [0.5.0] - 2026-08-13
 
@@ -286,8 +263,7 @@ First usable release.
 
 [unreleased]: https://github.com/vip-ultr/tickless/compare/566c882...HEAD
 [1.0.0]: https://github.com/vip-ultr/tickless/compare/1459cdb...566c882
-[0.7.0]: https://github.com/vip-ultr/tickless/compare/c09a829...1459cdb
-[0.6.0]: https://github.com/vip-ultr/tickless/compare/1bf111a...c09a829
+[0.6.0]: https://github.com/vip-ultr/tickless/compare/1bf111a...1459cdb
 [0.5.0]: https://github.com/vip-ultr/tickless/compare/ec7515d...1bf111a
 [0.4.0]: https://github.com/vip-ultr/tickless/compare/2abd0d1...ec7515d
 [0.3.0]: https://github.com/vip-ultr/tickless/compare/b2d6aac...2abd0d1
