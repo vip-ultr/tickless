@@ -164,6 +164,10 @@ function Skeleton({ slow }: { slow: boolean }) {
 
 function ResultCard({ data, sourceUrl, onReset }: { data: Result; sourceUrl: string; onReset: () => void }) {
   const [selectedGalleryIndex, setSelectedGalleryIndex] = useState(0);
+  // Indices ticked for a bulk download. Tapping a chip toggles membership here
+  // AND moves the single-item preview to it, so one tap does both.
+  const [selected, setSelected] = useState<Set<number>>(new Set());
+  const [downloading, setDownloading] = useState(false);
   const gallery = data.gallery ?? [];
   const hasGallery = gallery.length > 1;
   const galleryTypes = data.gallery_types ?? [];
@@ -211,8 +215,21 @@ function ResultCard({ data, sourceUrl, onReset }: { data: Result; sourceUrl: str
     return `tickless_${title || "download"}_${idx + 1}.${extFor(blob, idx)}`;
   };
 
-  const downloadAll = async () => {
-    for (let idx = 0; idx < gallery.length; idx++) {
+  const toggleSelect = (idx: number) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(idx)) next.delete(idx);
+      else next.add(idx);
+      return next;
+    });
+    setSelectedGalleryIndex(idx);
+  };
+
+  // One loop backs both bulk actions. The 300ms stagger inside is deliberate:
+  // browsers silently drop a burst of simultaneous downloads.
+  const downloadIndices = async (indices: number[]) => {
+    setDownloading(true);
+    for (const idx of indices) {
       try {
         const res = await fetch(dl("video", idx));
         if (!res.ok) continue;
@@ -246,7 +263,16 @@ function ResultCard({ data, sourceUrl, onReset }: { data: Result; sourceUrl: str
       } catch {}
       await new Promise((resolve) => setTimeout(resolve, 300));
     }
+    setDownloading(false);
   };
+
+  const downloadAll = () => downloadIndices(gallery.map((_, idx) => idx));
+  // `selected` is keyed by index; if the same URL re-extracts with a shorter
+  // gallery, drop any now out-of-range indices rather than requesting them.
+  const downloadSelected = () =>
+    downloadIndices(
+      [...selected].filter((idx) => idx < gallery.length).sort((a, b) => a - b),
+    );
 
   return (
     <motion.div
@@ -277,12 +303,13 @@ function ResultCard({ data, sourceUrl, onReset }: { data: Result; sourceUrl: str
                 <button
                   key={item}
                   type="button"
-                  onClick={() => setSelectedGalleryIndex(idx)}
+                  aria-pressed={selected.has(idx)}
+                  onClick={() => toggleSelect(idx)}
                   className={`shrink-0 rounded-lg border-2 px-3 py-1 text-xs font-medium transition-colors ${
-                    idx === selectedGalleryIndex
+                    selected.has(idx)
                       ? "border-[var(--brand-primary)] bg-[var(--brand-primary)]/10 tx"
                       : "border-transparent bg-[var(--glass-border)] tx-muted"
-                  }`}
+                  }${idx === selectedGalleryIndex ? " ring-1 ring-[var(--brand-primary)]/60" : ""}`}
                 >
                   {(galleryTypes[idx] || "video") === "photo" ? `Photo ${idx + 1}` : `Video ${idx + 1}`}
                 </button>
@@ -299,15 +326,50 @@ function ResultCard({ data, sourceUrl, onReset }: { data: Result; sourceUrl: str
         >
           <Download size={16} /> Download
         </a>
+        {hasGallery && selected.size > 0 && (
+          <button
+            type="button"
+            onClick={downloadSelected}
+            disabled={downloading}
+            className="btn-brand flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold disabled:opacity-60"
+          >
+            <Download size={16} />
+            Download selected ({selected.size})
+          </button>
+        )}
         {hasGallery && (
           <button
             type="button"
             onClick={downloadAll}
-            className="btn-brand flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold"
+            disabled={downloading}
+            className="btn-brand flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold disabled:opacity-60"
           >
             <Download size={16} />
             Download all
           </button>
+        )}
+        {hasGallery && (
+          <div className="flex items-center gap-3 self-center text-xs">
+            <button
+              type="button"
+              onClick={() => setSelected(new Set(gallery.map((_, idx) => idx)))}
+              disabled={downloading || selected.size === gallery.length}
+              className="tx underline-offset-2 hover:underline disabled:opacity-40"
+            >
+              Select all
+            </button>
+            <button
+              type="button"
+              onClick={() => setSelected(new Set())}
+              disabled={downloading || selected.size === 0}
+              className="tx-muted underline-offset-2 hover:underline disabled:opacity-40"
+            >
+              Clear
+            </button>
+          </div>
+        )}
+        {downloading && (
+          <span className="self-center text-xs tx-muted">Preparing your files…</span>
         )}
         {itemType === "video" && (
           <a
