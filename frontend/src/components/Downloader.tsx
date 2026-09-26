@@ -269,10 +269,18 @@ function ResultCard({ data, sourceUrl, onReset }: { data: Result; sourceUrl: str
   const downloadAll = () => downloadIndices(gallery.map((_, idx) => idx));
   // `selected` is keyed by index; if the same URL re-extracts with a shorter
   // gallery, drop any now out-of-range indices rather than requesting them.
-  const downloadSelected = () =>
-    downloadIndices(
-      [...selected].filter((idx) => idx < gallery.length).sort((a, b) => a - b),
-    );
+  const selection = [...selected]
+    .filter((idx) => idx >= 0 && idx < gallery.length)
+    .sort((a, b) => a - b);
+  const downloadSelected = () => downloadIndices(selection);
+
+  // The primary Download button always acts on the selection when there is
+  // one, and on the previewed item otherwise -- so selecting never adds a
+  // third button, it only changes what this one does and how it reads.
+  const primaryUrl =
+    selection.length === 1 ? dl("video", selection[0]) : dl("video");
+  const primaryLabel =
+    selection.length >= 2 ? `Download (${selection.length})` : "Download";
 
   return (
     <motion.div
@@ -320,13 +328,7 @@ function ResultCard({ data, sourceUrl, onReset }: { data: Result; sourceUrl: str
       </div>
 
       <div className="mt-5 flex flex-wrap gap-3">
-        <a
-          href={dl("video")}
-          className="btn-brand flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold"
-        >
-          <Download size={16} /> Download
-        </a>
-        {hasGallery && selected.size > 0 && (
+        {selection.length >= 2 ? (
           <button
             type="button"
             onClick={downloadSelected}
@@ -334,8 +336,15 @@ function ResultCard({ data, sourceUrl, onReset }: { data: Result; sourceUrl: str
             className="btn-brand flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold disabled:opacity-60"
           >
             <Download size={16} />
-            Download selected ({selected.size})
+            {primaryLabel}
           </button>
+        ) : (
+          <a
+            href={primaryUrl}
+            className="btn-brand flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold"
+          >
+            <Download size={16} /> {primaryLabel}
+          </a>
         )}
         {hasGallery && (
           <button
