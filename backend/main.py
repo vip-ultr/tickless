@@ -77,6 +77,13 @@ app.add_middleware(
     allow_origins=ALLOWED_ORIGINS,
     allow_methods=["GET", "POST", "PATCH", "DELETE"],
     allow_headers=["*"],
+    # allow_headers only covers the REQUEST direction. Without expose_headers a
+    # cross-origin fetch() may not read Content-Disposition, so "Download all"
+    # never sees the filename this API computes and falls back to an uncapped,
+    # extensionless one (photos and videos then both land as an unknown "file").
+    # The single-item button is unaffected because a browser navigation is not
+    # subject to CORS.
+    expose_headers=["Content-Disposition"],
 )
 
 app.include_router(ads_router)

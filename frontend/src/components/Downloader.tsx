@@ -183,6 +183,34 @@ function ResultCard({ data, sourceUrl, onReset }: { data: Result; sourceUrl: str
     return `${API_URL}/api/download?url=${encodeURIComponent(sourceUrl)}&kind=${kind}${key ? `&key=${encodeURIComponent(key)}` : ""}${hasGallery ? `&gallery_index=${galleryIndex}` : ""}`;
   };
 
+  // Extension taken from the bytes we actually received, so a photo can never
+  // be saved as a video (and never as an extensionless "file").
+  const extFor = (blob: Blob, idx: number) => {
+    const t = (blob.type || "").toLowerCase();
+    if (t.includes("jpeg") || t.includes("jpg")) return "jpg";
+    if (t.includes("png")) return "png";
+    if (t.includes("webp")) return "webp";
+    if (t.includes("gif")) return "gif";
+    if (t.includes("mp4")) return "mp4";
+    if (t.includes("webm")) return "webm";
+    if (t.includes("mpeg") || t.includes("mp3")) return "mp3";
+    return (galleryTypes[idx] || "video") === "photo" ? "jpg" : "mp4";
+  };
+
+  // Used only when the backend's Content-Disposition is unavailable. Mirrors
+  // build_download_filename(): strip hashtags and filesystem-hostile
+  // characters, cap the caption, then append the index and the real extension.
+  const fallbackName = (idx: number, blob: Blob) => {
+    const title = (data.title || data.platform || "download")
+      .replace(/#\S+/g, "")
+      .replace(/[<>:"/\\|?*]/g, "")
+      .replace(/\s+/g, " ")
+      .trim()
+      .slice(0, 40)
+      .trim();
+    return `tickless_${title || "download"}_${idx + 1}.${extFor(blob, idx)}`;
+  };
+
   const downloadAll = async () => {
     for (let idx = 0; idx < gallery.length; idx++) {
       try {
@@ -190,15 +218,23 @@ function ResultCard({ data, sourceUrl, onReset }: { data: Result; sourceUrl: str
         if (!res.ok) continue;
         const blob = await res.blob();
         // Prefer the backend-suggested filename (Content-Disposition) so
-        // naming stays consistent and unique per post.
-        let filename = `tickless_${data.title || data.platform || "download"}_${idx + 1}`;
+        // naming stays consistent and identical to the single-item button:
+        // capped caption, "_N" suffix, " - Tickless", real extension.
+        let filename = "";
         const cd = res.headers.get("Content-Disposition");
         if (cd) {
           const m =
             cd.match(/filename\*=UTF-8''([^;]+)/) ||
             cd.match(/filename="?([^";]+)"?/);
-          if (m && m[1]) filename = decodeURIComponent(m[1]);
+          if (m && m[1]) {
+            try {
+              filename = decodeURIComponent(m[1]);
+            } catch {
+              filename = m[1];
+            }
+          }
         }
+        if (!filename) filename = fallbackName(idx, blob);
         const url = URL.createObjectURL(blob);
         const a = document.createElement("a");
         a.href = url;

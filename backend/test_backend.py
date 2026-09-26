@@ -148,6 +148,38 @@ def test_filename_gallery_index_survives_long_caption():
     assert "_1" in base and "_2" in second
 
 
+def test_cors_exposes_content_disposition():
+    """Regression: "Download all" reads the filename via fetch(), which is
+    subject to CORS.
+
+    `allow_headers` only covers the REQUEST direction. Without
+    Access-Control-Expose-Headers the browser hides Content-Disposition from
+    JavaScript, so Downloader.downloadAll() silently fell back to
+    `tickless_<entire caption>_N` with no extension -- photos and videos then
+    both landed on disk as an unknown "file". The single-item Download button
+    was never affected, because a plain browser navigation is not subject to
+    CORS, which is exactly why the two paths disagreed.
+    """
+    from starlette.testclient import TestClient
+
+    from main import ALLOWED_ORIGINS, app
+
+    origin = ALLOWED_ORIGINS[0]
+    with TestClient(app) as client:
+        res = client.get("/api/health", headers={"Origin": origin})
+
+    # If CORS did not apply at all, the assertion below would be vacuous.
+    assert res.headers.get("access-control-allow-origin") in (origin, "*"), dict(
+        res.headers
+    )
+
+    exposed = res.headers.get("access-control-expose-headers", "")
+    assert "content-disposition" in exposed.lower(), (
+        "Content-Disposition is not exposed to fetch(); "
+        f"got Access-Control-Expose-Headers={exposed!r}"
+    )
+
+
 # ---- visit analytics ----
 from analytics import visitor_hash
 
