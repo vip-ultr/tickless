@@ -16,7 +16,44 @@ lives under [Unreleased].
 
 ## [Unreleased]
 
-_Nothing yet._
+### Added
+
+- **Multi-select carousel downloads.** Gallery chips are now toggleable — one
+  tap ticks the item *and* moves the single-item preview to it, so the existing
+  **Download** button keeps behaving exactly as it did. Ticking two or more
+  changes that button's label to **Download (N)** and its behaviour to fetch
+  just those items through the same staggered loop **Download all** uses; with
+  none or one ticked it stays a native `<a href>`, which deliberately keeps it
+  off the CORS path the filename fix below depends on. The row therefore stays
+  at two buttons however many items are selected. Small **Select all** / **Clear**
+  controls save the taps on long carousels, chips carry `aria-pressed` for
+  assistive tech, and both bulk buttons disable under a shared "Preparing your
+  files…" status while a run is in flight.
+
+### Fixed
+
+- **"Download all" produced wrong filenames and file types.** Files arrived as
+  `tickless_<entire caption>_1` with no extension, so Windows showed an unknown
+  "file" and photos and videos were indistinguishable — while a single-item
+  download of the same post produced the correct
+  `user - caption_1 - Tickless.jpg`. One cause covered both symptoms:
+  `CORSMiddleware` set `allow_headers` (the *request* direction) but never
+  `expose_headers`, so a cross-origin `fetch()` was not permitted to read
+  `Content-Disposition` and the frontend silently fell back to an uncapped,
+  extensionless name. A plain `<a href>` navigation is not subject to CORS,
+  which is exactly why the two paths disagreed — the backend was already
+  computing the right name. The API now exposes `Content-Disposition`, and the
+  frontend fallback mirrors `build_download_filename()` (hashtag and
+  filesystem-character stripping, the 40-char caption cap, the `_N` index
+  suffix) and derives the extension from the bytes actually received, so a
+  photo can never be saved as a video even if the header goes missing again.
+  Covered by `test_cors_exposes_content_disposition`, A/B verified to fail
+  without the fix.
+
+### Removed
+
+- The `mobile/` React Native app, which was never part of a release. Its source
+  stays recoverable from git history.
 
 ## [1.0.0] - 2026-09-26
 
