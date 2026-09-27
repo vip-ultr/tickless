@@ -1,11 +1,18 @@
 # Clip Feature Plan — Tickless
 
+> **Status:** **SHIPPED.** Live at `/clip` since **v0.5.0, 2026-08-13**.
+> **Written:** 2026-08-11 · **Last updated:** 2026-09-27
+> **Record of what changed after this landed:** [CHANGELOG.md](../CHANGELOG.md)
+
 Manual video clipping integrated into the Tickless Python backend (Option B).
 Standalone `/clip` page, multi-segment manual trim (same model as
 my-video-clipper's editor), audio-only per segment. No AI, no Node, no Cobalt,
 no new Supabase tables.
 
-Status: PLANNED. Not yet built. This doc is the resumable handoff.
+This document was the resumable handoff while the feature was being built. The
+decisions below are the ones that shipped and still describe the code; the
+sections marked `[DONE]` and the bug-fix list at the end record how the build
+actually went. Anything newer than 2026-08-13 lives in the changelog.
 
 ## Decisions (locked)
 

@@ -1,6 +1,34 @@
 # Tickless growth strategy: search + AI discoverability
 
-Written 2026-07-28 from two deep-research passes: (a) live teardown of snaptik.app and ssstik.io (HTML, sitemaps, robots.txt, Semrush traffic data), (b) GEO/AEO research on how ChatGPT, Perplexity, Gemini and AI agents source recommendations. Sources cited inline.
+> **Status:** Strategy, partly executed. Read the "Where this stands" block
+> below before acting on anything here.
+> **Written:** 2026-07-28 from two deep-research passes: (a) live teardown of
+> snaptik.app and ssstik.io (HTML, sitemaps, robots.txt, Semrush traffic data),
+> (b) GEO/AEO research on how ChatGPT, Perplexity, Gemini and AI agents source
+> recommendations. Sources cited inline.
+> **Last reviewed:** 2026-09-27
+
+### Where this stands (reviewed 2026-09-27)
+
+Done:
+- `/robots.txt` exists and disallows `/admin` only. It does **not** yet carry
+  the AI-crawler allow-list from Phase 2 item 1.
+- `/sitemap.xml` exists. It currently lists `/`, `/faq`, `/about`, `/terms`,
+  `/privacy` and `/copyright`, and is **missing `/clip` and `/dmca`**.
+- The FAQ page exists and carries the questions listed in `content.md`, but it
+  has **no FAQPage JSON-LD**, and there is **no HowTo or WebApplication
+  structured data anywhere in the frontend**. Phase 1 items 2, 3 and 4 are all
+  still open.
+- YouTube support exists in the backend but was dropped from frontend copy in
+  v0.3.0, so the title pattern in Phase 1 item 1 (which names YouTube) is not
+  what the site ships. The live title is
+  `Tickless - TikTok & Instagram Video Downloader, No Watermark`.
+
+Not started, and still the highest-leverage items:
+- Decision 0, the custom domain. Everything in Phase 1 that depends on
+  authority still blocks on it.
+- `llms.txt`, the comparison page, directory/PH/HN seeding, language subpages,
+  the MCP server.
 
 ## The market (verified numbers)
 
@@ -19,7 +47,7 @@ tickless.vercel.app cannot build authority: Google discounts freehost subdomains
 2. Grow the FAQ to ~13 keyword-loaded Q&A pairs (snaptik's count), one per intent: no watermark, HD, mp3, iPhone/Android, is it free, is it legal, slideshow, story, etc. Visible text AND FAQPage JSON-LD.
 3. Visible 3-step How-To section + HowTo JSON-LD.
 4. WebApplication JSON-LD (applicationCategory MultimediaApplication). Never fake AggregateRating (ssstik self-asserts 4.9/297k reviews; it works until Google nukes it).
-5. Feature subpages, each 1 click from home, each with own FAQ: /mp3, /story, /slideshow. Later /instagram as the second keyword surface (snapinsta model).
+5. Feature subpages, each 1 click from home, each with own FAQ: /mp3, /story, /slideshow. Later /instagram as the second keyword surface (snapinsta model). *(Note: `/instagram` was built and then removed. The locked product decision is a single page carrying both platforms, so the second keyword surface has to come from copy and structured data on `/`, not from a new route.)*
 6. Language subpages with hreflang in head AND sitemap xhtml:link alternates, x-default en. Start with the traffic geography: id, pt, es, ar, fil/tl, hi, ha (Hausa: home advantage, zero competition).
 7. robots.txt: disallow crawl of ?url= result params (infinite duplicate URLs), declare sitemap.
 8. Keep CWV tight on mid-range Android: LCP < 2.5s, no heavy ad scripts.
@@ -73,4 +101,4 @@ Precedent: kevinwatt/yt-dlp-mcp is a popular MCP server giving Claude/LLMs TikTo
 5. Directory/GitHub/PH/HN seeding (spread over 2 weeks)
 6. Language subpages (iterative, 2-3 per week)
 7. MCP server + registries (one day, after custom domain)
-8. Instagram downloader under /instagram with its own FAQ/HowTo/hreflang cluster (repeat Phase 1)
+8. Instagram downloader under /instagram with its own FAQ/HowTo/hreflang cluster (repeat Phase 1). *(Superseded: Instagram already ships, but on the single homepage, not under `/instagram`. Treat this as "Instagram SEO on the homepage".)*

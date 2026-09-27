@@ -1,14 +1,38 @@
 # Plan: multi-platform Tickless (TikTok + Instagram, extensible)
 
-Written 2026-07-28. Status: APPROVED PENDING BUILD.
+> **Status:** **SHIPPED.** Instagram support is live; the platform registry
+> landed in **v0.1.0, 2026-07-28**, with galleries, photo posts and the Cobalt
+> extraction path in **v0.2.0, 2026-07-31**.
+> **Written:** 2026-07-28 · **Last updated:** 2026-09-27
+> **Record of what changed after this landed:** [CHANGELOG.md](../CHANGELOG.md)
+
 Goal: one input box, auto-detect platform from the pasted link, download Instagram Reels/videos exactly like TikToks. Architecture must make adding platform number 3 (YouTube Shorts, Facebook, X...) a config change, not a rewrite. Admin gains per-platform download counters.
+
+### Where this plan ended up vs. what was written
+
+The architecture decisions all held. Three things changed after this document
+was written, and the notes below flag them inline so nobody builds from a
+superseded line:
+
+1. **Carousels are supported.** Scope item 4 said multi-image posts would be a
+   clean "not supported yet" error, and section 5 said v1 downloads the first
+   entry. Cobalt's picker made real carousel support possible, and the gallery
+   UI now supports per-item download plus multi-select (`Select all`,
+   **Download (N)**).
+2. **The `/instagram` page was never kept.** Section 2.2 planned a dedicated
+   route; the single-page decision in item 8 won in the end and `/instagram`
+   was removed. The homepage carries both platforms, which is what item 8
+   decided and what the sitemap reflects today.
+3. **YouTube is a registered platform but is not advertised.** It sits in
+   `backend/platforms.py` and the backend extracts it, but it was dropped from
+   the frontend copy in v0.3.0, so users are not offered it.
 
 ## 0. Locked decisions
 
 1. Same single input. No platform picker. Backend detects platform from hostname and reports it back; frontend adapts labels dynamically.
 2. yt-dlp remains the only extractor (it supports Instagram natively). No new dependencies.
 3. Platform registry pattern: one PLATFORMS dict in backend/platforms.py is the single source of truth (hosts, display name, error strings key). Everything else reads from it.
-4. Instagram scope v1: Reels and feed videos (single). Stories, private posts, carousels/multi-image = clean "not supported yet" errors. IG photos = same treatment as TikTok slideshows.
+4. Instagram scope v1: Reels and feed videos (single). Stories, private posts, carousels/multi-image = clean "not supported yet" errors. IG photos = same treatment as TikTok slideshows. *(Superseded: carousels and photo posts are supported today. See the note at the top.)*
 5. Instagram extraction risk: IG is more aggressively anti-bot than TikTok. yt-dlp handles public Reels without login today; if IG starts demanding login we show a clear error, never ask users for credentials.
 6. Downloads counter lives in Supabase (new downloads table), counted server-side in /api/download success path only (a real completed file stream, not extract calls).
 7. Copy changes sitewide: "TikTok" as the sole subject becomes "TikTok and Instagram" (hero, FAQ, about, legal, metadata). Wordmark and brand unchanged. No em dashes.
@@ -55,9 +79,11 @@ Goal: one input box, auto-detect platform from the pasted link, download Instagr
 - Result state uses platform from the API response (icon + "TikTok video" / "Instagram reel" label in ResultCard).
 - Error copy comes from backend, already neutral.
 
-### 2.2 New page: /instagram
+### 2.2 New page: /instagram *(not shipped — see the note at the top)*
 - Same Downloader component, Instagram-first copy: H1 "Instagram Video Downloader", hero, 3-step HowTo, Instagram FAQ block (reels, no watermark framing, private accounts answer, is it legal answer).
 - Linked from footer + homepage ("Also works with Instagram Reels" line under the hero).
+- Built, then removed: the single-page decision (item 8) is what shipped, so
+  `/instagram` is not in the route list or the sitemap today.
 
 ### 2.3 Copy updates (site-wide sweep)
 - page.tsx hero: keep locked TikTok copy line but extend: subject becomes both platforms where it reads naturally.
@@ -78,17 +104,20 @@ Goal: one input box, auto-detect platform from the pasted link, download Instagr
 
 ## 4. Build order (each step verified before the next)
 
-1. backend platforms.py + validation refactor + unit tests (no behavior change for TikTok).
-2. extract/download platform plumbing + IG live test. Verify real IG Reel end to end locally (header, file, filename).
-3. downloads schema + record + admin endpoint + tests. USER ACTION: run new SQL in Supabase.
-4. Frontend: Downloader copy + platform in ResultCard.
-5. /instagram page + sitemap + footer link.
-6. Site-wide copy sweep (per docs/content.md updates first).
-7. Admin downloads section.
-8. Full verification: pytest, tsc, eslint, next build, local e2e both platforms, then push (Render + Vercel auto-deploy), live e2e.
+All eight steps shipped. Marked as they landed:
+
+1. [DONE] backend platforms.py + validation refactor + unit tests (no behavior change for TikTok).
+2. [DONE] extract/download platform plumbing + IG live test. Verify real IG Reel end to end locally (header, file, filename).
+3. [DONE] downloads schema + record + admin endpoint + tests. USER ACTION: run new SQL in Supabase.
+4. [DONE] Frontend: Downloader copy + platform in ResultCard.
+5. [DONE then REVERTED] /instagram page + sitemap + footer link. The route was
+   built and later removed when the single-page product structure won.
+6. [DONE] Site-wide copy sweep (per docs/content.md updates first).
+7. [DONE] Admin downloads section.
+8. [DONE] Full verification: pytest, tsc, eslint, next build, local e2e both platforms, then push (Render + Vercel auto-deploy), live e2e.
 
 ## 5. Risks / notes
 - IG rate-limits datacenter IPs harder than TikTok; Render's shared IP may hit login walls. Mitigation: clear error message ("Instagram is blocking our server right now, try again in a few minutes"), monitor via health cron later.
-- IG carousels (multi-video posts) are a playlist in yt-dlp; v1 downloads the first entry and we note it in FAQ.
+- IG carousels (multi-video posts) are a playlist in yt-dlp; v1 downloads the first entry and we note it in FAQ. *(Superseded: Cobalt's picker returns every item and the gallery supports per-item and multi-select download.)*
 - Copy rule: no em dashes anywhere, quantities as digits.
 - Nothing in this plan requires the custom domain decision; it stacks cleanly on the growth strategy later.

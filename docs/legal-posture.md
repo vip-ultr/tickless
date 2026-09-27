@@ -1,5 +1,13 @@
 # Legal Posture
 
+> **Status:** Current. Written for the first public launch and still accurate.
+> **Written:** 2026-08-01 · **Last reviewed:** 2026-09-27
+> **Companion pages:** [/terms](https://tickless.vercel.app/terms),
+> [/privacy](https://tickless.vercel.app/privacy),
+> [/copyright](https://tickless.vercel.app/copyright) and
+> [/dmca](https://tickless.vercel.app/dmca) are the user-facing versions of this
+> posture.
+
 > Founder-level summary for pitches and internal decisions. Not legal advice.
 > Get a lawyer's review before raising or operating at scale.
 
@@ -28,7 +36,12 @@ same work is our legal-risk control:
   could disappear or be served with legal strings attached.
 - A PO-token provider defeats YouTube's bot wall from a datacenter IP without
   account cookies.
-- Daily health-check cron catches extraction breakage before users notice.
+- A keep-warm workflow pings `/api/health` and `/api/health/cobalt` every 10
+  minutes across the daily 08:00-21:59 UTC window and fails the run if either
+  drops, so an outage surfaces to the repo owner in minutes rather than through
+  users. `/api/health/extract` runs a real extraction and is deliberately kept
+  out of that loop, so extraction breakage itself is still found by a human or
+  by a user, not automatically.
 - Per-device ad creatives and graceful error handling keep the service stable at
   scale instead of returning 500s.
 

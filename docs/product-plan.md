@@ -1,14 +1,19 @@
-# TikTok Downloader — Product & Implementation Plan
+# Tickless — Product & Implementation Plan
 
-> **Status:** Planning. No code written yet. This is the master blueprint we build from.
+> **Status:** Built and shipped. This remains the master blueprint: the sections
+> marked **LOCKED** still govern the code, and sections 2, 3, 6 and 8 have been
+> rewritten to describe the product as it stands instead of what was planned.
+> **Written:** 2026-07-27 · **Last updated:** 2026-09-27
+> **Current release:** 1.0.0 (2026-09-26) ·
+> **Record of every change since:** [CHANGELOG.md](../CHANGELOG.md)
 
 **Goal:** Ship a professional, free-to-run web product ("Tickless") that downloads TikTok videos without watermark, treated as a real brand (name, identity, socials, modern responsive UI), not a throwaway script. Built platform-agnostic so Instagram (and more) can be added later under the same brand.
 
 **Product name:** **Tickless** (locked). Plays on "tick" (TikTok) + "less" (no watermark, less friction). Generalizes cleanly to a multi-platform downloader brand.
 
-**Multi-platform vision:** Tickless is a family/umbrella brand. TikTok is app #1; Instagram, YouTube Shorts, etc. plug in later behind the same UI and a modular backend "extractor" interface. Architecture below is designed for this from day one.
+**Multi-platform vision:** Tickless is a family/umbrella brand. TikTok is app #1; Instagram, YouTube Shorts, etc. plug in later behind the same UI and a modular backend "extractor" interface. Architecture below is designed for this from day one. *(Instagram has shipped. YouTube is registered in `backend/platforms.py` and extracts, but was dropped from frontend copy in v0.3.0, so it is not advertised. See section 6.)*
 
-**Architecture (one line):** Next.js frontend on Vercel talks to a Python (FastAPI) + yt-dlp backend on Render; the backend extracts the clean video URL from TikTok and streams/redirects it to the user. No paid APIs.
+**Architecture (one line):** Next.js frontend on Vercel talks to a Python (FastAPI) backend on Render, which runs yt-dlp alongside a self-hosted Cobalt sidecar; the backend resolves the clean file URL and the browser downloads it straight from the CDN. No paid APIs.
 
 ---
 
@@ -24,6 +29,15 @@ A real product needs a name that is short, brandable, not trademark-conflicting 
 - Minor note: "tickless" is also a Linux kernel term (tickless kernel) — irrelevant to consumers, no trademark/brand conflict for this product category.
 
 ### Brand colors — LOCKED (unique, platform-neutral for umbrella brand)
+
+> **Superseded in part by locked decision 23** (section 10). The palette that
+> actually shipped is **midnight + green primary + cyan accent, with no
+> gradients at all**, which is what `frontend/src/app/globals.css` encodes on
+> line 4 and what the wordmark uses (white "Tick" + green "less"). The
+> cyan-to-lime block and the signature-gradient paragraph below record the
+> original direction and are kept so the reasoning survives, but **do not build
+> from them**.
+
 Since Tickless is multi-platform, the brand must NOT lean on TikTok's red/cyan or any single platform's colors. Chosen direction: **deep midnight + luminous cyan-to-lime signal accent** — feels like a fast, modern utility ("scan / extract / done"), distinct from every competitor and neutral enough to sit above TikTok, Instagram, etc.
 
 ```
@@ -70,12 +84,22 @@ Positive rules to APPLY:
 
 ## 2. How the Product Works (technical core, confirmed)
 
-The watermark-free file already exists on TikTok's servers (`play_addr`); the app just fetches it — no image processing, no ML. Two extraction strategies:
+The watermark-free file already exists on TikTok's servers (`play_addr`); the app just fetches it — no image processing, no ML.
 
-- **Primary:** `yt-dlp` (free, open source, best-maintained TikTok extractor).
-- **Fallback:** direct call to TikTok's internal `aweme` endpoint with spoofed device headers, reading `play_addr` from JSON.
+**As built (rewritten 2026-09-27 to match the code).** Extraction runs as a cascade and the first stage that returns a usable result wins:
 
-**Critical reliability fact:** TikTok periodically breaks yt-dlp's extractor. Mitigation is non-negotiable: the backend must auto-update yt-dlp to nightly on every deploy/boot, and we ship the direct-endpoint fallback so one breakage doesn't take the whole product down.
+- **Stage 1 — Cobalt.** A self-hosted Cobalt instance vendored under `backend/cobalt/` and built into the image, running as a **sidecar inside the backend container** on loopback. It handles TikTok and Instagram, including carousels and photo posts through its picker, and an outbound proxy scoped to it gets past Instagram's per-IP rate limits.
+- **Stage 2 — `yt-dlp`.** Used for TikTok photo posts, for YouTube, and as a fallback whenever Cobalt returns nothing. Auto-updated on deploy.
+- **Stage 3 — embed-page markup scrape** (`parseEmbedMarkup`), a strictly last-resort Instagram stage for static photo posts whose embed page comes back with `contextJSON: null`.
+
+YouTube additionally runs a PO-token provider built on a Rust crate, so it defeats the bot wall from a datacenter IP without account cookies and without shipping a Chrome binary.
+
+**Critical reliability fact:** TikTok periodically breaks yt-dlp's extractor, and Instagram rate-limits datacenter IPs. Mitigations that shipped: Cobalt is co-located so warming the backend also warms the sidecar, `cobalt_client` polls until the sidecar genuinely responds (`COBALT_WARMUP_BUDGET`, default 55s) instead of fire-and-forgetting a single ping, `/api/extract` runs in the threadpool so that warmup cannot block TikTok extraction, and four health endpoints (`/api/health`, `/api/health/cobalt`, `/api/health/extract`, `/api/health/config`) report each stage separately.
+
+> The original plan for this section was `yt-dlp` plus a direct call to TikTok's
+> internal `aweme` endpoint with spoofed device headers. That endpoint fallback
+> was never built; the Cobalt sidecar took its place as the first-line and
+> fallback path.
 
 ---
 
@@ -85,14 +109,21 @@ The watermark-free file already exists on TikTok's servers (`play_addr`); the ap
 [ Browser ]
      |
      v
-[ Vercel ]  <- Next.js frontend (static + light API routes)
+[ Vercel ]  <- Next.js frontend (fully static, no API routes)
      |  fetch()
      v
 [ Render ]  <- FastAPI + yt-dlp + ffmpeg (Docker)
+     |               |
+     |               +-- [ Cobalt sidecar ] loopback :9000, SAME container
+     |               +-- outbound proxy, scoped to the sidecar (Instagram)
+     |
+     +--> [ Supabase ]  ad records, uploaded creatives, visit/download counters
      |
      v
-[ TikTok CDN ] -> clean MP4 URL returned to browser
+[ TikTok / Instagram / YouTube CDN ] -> clean file URL, the browser downloads direct
 ```
+
+Co-locating Cobalt with the backend was forced by Render's networking: service-to-service traffic is routed internally at the stopped container, which refuses the connection instead of booting through the public proxy, so a separate Cobalt service could never be woken by the backend. One container, one boot, both warm.
 
 ### Render free-tier constraints (confirmed) and how we design around them
 - **Spins down after 15 min idle, ~60s cold start.** -> Frontend shows a friendly "waking up the server" skeleton state; optional cron ping to keep warm during launch. Do NOT promise instant first response.
@@ -103,7 +134,7 @@ The watermark-free file already exists on TikTok's servers (`play_addr`); the ap
 ### Why redirect > proxy (key insight)
 If we proxy the video bytes through Render, every download eats our bandwidth and instance time -> we hit free limits fast. Instead, backend returns the CDN URL and the browser downloads directly from TikTok. Render only does the tiny JSON extraction work. This is how you stay genuinely free at small/medium scale.
 
-Slideshow posts are the exception (must merge images+audio with ffmpeg server-side); stream the result, delete immediately.
+Photo posts and carousels are the exception: Cobalt's picker returns every item as a gallery, and the frontend downloads them individually (per item, or all via **Select all** + **Download (N)**). Nothing is merged server-side. ffmpeg is in the image for the Clip feature, not for slideshow merging.
 
 ---
 
@@ -158,22 +189,29 @@ Slideshow posts are the exception (must merge images+audio with ffmpeg server-si
 
 ## 6. Feature Scope
 
-### v1 (MVP — launch)
-- Paste TikTok link -> get no-watermark MP4 (HD when available).
-- Download audio (MP3) button.
-- Copy/paste + basic URL validation, clear error states.
-- Full responsive UI, glass + skeleton, mobile nav.
-- Legal pages, branding, socials live.
+Rewritten 2026-09-27 to describe what ships rather than what was planned.
 
-### v2 (post-launch)
-- Slideshow (photo post) -> MP4 merge.
-- Multiple quality options.
-- Batch (multiple links).
-- Light/dark toggle (ship dark-first).
-- Simple analytics (privacy-friendly, e.g. Plausible free/self-host or Vercel Analytics).
+### Downloader (shipped)
+- Single input with hostname auto-detection through `backend/platforms.py`.
+  TikTok and Instagram are advertised; YouTube is registered in the backend and
+  extracts, but was dropped from frontend copy in v0.3.0.
+- No-watermark video, **Audio (MP3)**, and gallery posts (TikTok photo posts,
+  Instagram carousels and single images) rendered as chips with per-item
+  download.
+- **Multi-select**: chips toggle and move the preview, **Select all** stages
+  the whole gallery, **Download (N)** runs the staged set through one staggered
+  loop, **Clear** unstages. With zero or one item staged the primary control
+  stays a native `<a href>`, deliberately keeping it off the CORS path the
+  filename fix depends on.
+- Clean filenames built server-side by `build_download_filename()`, with
+  `Content-Disposition` exposed to the browser and a frontend fallback that
+  mirrors the same rules (hashtag and filesystem-character stripping, 40-char
+  caption cap, `_N` suffix, extension derived from the received bytes).
+- Backend-supplied error copy, a cold-start "waking the server" state, and
+  skeleton loading.
 
-### Shipped since launch (added)
-- **Clip** — ported from the my-video-clipper project: paste a TikTok / Instagram /
+### Clip (shipped v0.5.0, 2026-08-13)
+- Ported from the my-video-clipper project: paste a TikTok / Instagram /
   YouTube link or upload a video from your device (max 500 MB), mark multiple
   start/end segments, and export each as a clean clip or an audio-only track.
   Lives at `/clip` (navbar link). Backend endpoints: `POST /api/clip/upload`
@@ -182,8 +220,34 @@ Slideshow posts are the exception (must merge images+audio with ffmpeg server-si
   persisted to Supabase. ffmpeg runs as a subprocess argument list (no shell),
   which also avoids the quote-breaking bug the clipper had in its subtitle path.
 
+### Site (shipped)
+- Pages: Home, FAQ, About, Terms, Privacy, Copyright, DMCA, a branded 404, and
+  the login-protected `/admin` panel. `/instagram` was built and removed; the
+  single-page product structure is what shipped.
+- PWA install prompt with a real icon set, cookie consent with a preferences
+  modal, and per-slot house ads with per-device creatives.
+- Admin: ad CRUD and upload, per-slot stats, the visits dashboard, and
+  per-platform download counters.
+- Operations: API-key auth, per-IP rate limiting, CORS with `expose_headers`,
+  four health endpoints, CI, and a windowed keep-warm workflow.
+
+### Still open from the original v2 list
+- **Multiple quality options.** There is no quality selector; the result card
+  offers one video file plus audio.
+- **Batch paste.** Multi-select covers many items in one post, not several
+  links pasted at once.
+- **Light/dark toggle.** Dark-first shipped; no user-facing toggle exists.
+- **Slideshow-to-MP4 merge.** Now moot: galleries download per item.
+
+### Analytics
+Vercel Web Analytics shipped (cookieless and aggregated), alongside first-party
+visit and download counters in Supabase that feed the admin dashboard. The
+Plausible option in the original list was not taken.
+
 ### Explicitly deferred (YAGNI now)
-- User accounts, history, proxies/IP rotation, mobile apps. Handle at scale later.
+- User accounts, history, proxies/IP rotation, mobile apps. Handle at scale
+  later. (A React Native `mobile/` app was started and then removed; its source
+  and planning notes are recoverable from git history.)
 
 ---
 
@@ -194,41 +258,45 @@ Slideshow posts are the exception (must merge images+audio with ffmpeg server-si
 
 ---
 
-## 8. Build Phases (high-level; detailed task breakdown comes after name/branding is locked)
+## 8. Build Phases (status recorded 2026-09-27)
 
-**Phase 0 — Decisions & setup**
-- Lock product name + palette (USER INPUT NEEDED).
-- Create GitHub monorepo, scaffold `/frontend` and `/backend`.
-- Reserve social handles + (optional) domain.
+Phases 0 through 5 shipped. Phase 6 is partly open. The original wording is
+kept under each heading so the record of what was intended survives; the
+**Status** line on each says what actually happened.
 
-**Phase 1 — Backend core**
-- FastAPI service, `/api/extract?url=` endpoint.
-- yt-dlp integration returning CDN URL + metadata (thumbnail, title, author, duration).
-- Auto-update yt-dlp on boot; direct-endpoint fallback.
-- Dockerfile, deploy to Render, verify with a real link.
+**Phase 0 — Decisions & setup** — **Status: done, with the domain still open.**
+- Lock product name + palette (USER INPUT NEEDED). *(Done: name and palette locked, section 10.)*
+- Create GitHub monorepo, scaffold `/frontend` and `/backend`. *(Done.)*
+- Reserve social handles + (optional) domain. *(Domain still not bought; this is Decision 0 in the growth strategy.)*
 
-**Phase 2 — Frontend core**
+**Phase 1 — Backend core** — **Status: done, and reworked twice since.**
+- FastAPI service, `/api/extract?url=` endpoint. *(Done.)*
+- yt-dlp integration returning CDN URL + metadata (thumbnail, title, author, duration). *(Done, and now stage 2 of the cascade in section 2.)*
+- Auto-update yt-dlp on boot; direct-endpoint fallback. *(yt-dlp auto-update done. The direct-endpoint fallback was never built; the Cobalt sidecar replaced it.)*
+- Dockerfile, deploy to Render, verify with a real link. *(Done, and the image now also builds and runs the Cobalt sidecar.)*
+
+**Phase 2 — Frontend core** — **Status: done.**
 - Next.js scaffold, Tailwind v4 theme tokens, shadcn.
 - Home page: hero + paste input + validation.
 - Wire to backend, result card with skeleton loading + download button.
 - Cold-start friendly "waking server" state.
 
-**Phase 3 — Design polish + responsive**
+**Phase 3 — Design polish + responsive** — **Status: done.**
 - Glassmorphism system, gradient mesh bg, motion.
-- Desktop navbar + separate mobile nav/slide-over.
+- Desktop navbar + separate mobile nav/slide-over. *(Shipped as the bottom sheet, decision 8/26.)*
 - All breakpoints verified.
 
-**Phase 4 — Brand + content + legal**
-- Logo, favicons, OG image (image tool).
-- About, FAQ, Terms/Privacy/DMCA.
-- SEO metadata, sitemap, JSON-LD.
+**Phase 4 — Brand + content + legal** — **Status: mostly done; JSON-LD is not.**
+- Logo, favicons, OG image (image tool). *(Styled wordmark plus a generated favicon set; no custom logo glyph, per decision 6.)*
+- About, FAQ, Terms/Privacy/DMCA. *(All done, plus a dedicated `/dmca` page.)*
+- SEO metadata, sitemap, JSON-LD. *(Metadata and sitemap done. **JSON-LD was never implemented** — no FAQPage, HowTo or WebApplication schema exists anywhere in the frontend.)*
 
-**Phase 5 — Launch**
-- Deploy frontend to Vercel, connect domain.
-- Keep-warm cron during launch window.
-- Socials live, share.
+**Phase 5 — Launch** — **Status: done, on free subdomains.**
+- Deploy frontend to Vercel, connect domain. *(Deployed to `tickless.vercel.app`; no custom domain yet.)*
+- Keep-warm cron during launch window. *(Shipped as `.github/workflows/keep-tickless-warm.yml`, windowed to stay inside the free-hours budget.)*
+- Socials live, share. *(Still open.)*
 
-**Phase 6 — v2 features** (slideshow, batch, quality options).
+**Phase 6 — v2 features** (slideshow, batch, quality options). — **Status: not started; see section 6 for what superseded it.**
 
 ---
 
@@ -250,9 +318,9 @@ Slideshow posts are the exception (must merge images+audio with ffmpeg server-si
 - Terms/Privacy/Copyright pages ship in v1 (copy already locked in content doc).
 
 ### D. Monitoring & health (CRITICAL, locked)
-- **Error tracking:** Sentry free tier on BOTH frontend and backend. Captures the moment yt-dlp breaks.
-- **Analytics:** Vercel Web Analytics (free, privacy-friendly, no cookie needed) for traffic. Gated behind cookie consent only if it ever uses cookies; Vercel Analytics is cookieless so it can run always.
-- **Daily health-check cron (item 5, locked):** an automated job pings the backend with a known-good TikTok link once daily. If extraction fails, it alerts (email/Telegram) so we fix yt-dlp before users complain. This is the #1 insurance against silent death.
+- **Error tracking:** Sentry free tier on BOTH frontend and backend. Captures the moment yt-dlp breaks. *(Not implemented. Failures surface through the `ExtractionError` mapping in `main.py` and the health endpoints instead.)*
+- **Analytics:** Vercel Web Analytics (free, privacy-friendly, no cookie needed) for traffic. Gated behind cookie consent only if it ever uses cookies; Vercel Analytics is cookieless so it can run always. *(Shipped in v1.0.0, plus first-party visit and download counters in Supabase for the admin dashboard.)*
+- **Health monitoring (item 5, locked):** *(What shipped is narrower than the original plan.)* `.github/workflows/keep-tickless-warm.yml` pings `/api/health` and `/api/health/cobalt` every 10 minutes between 08:00 and 21:59 UTC and fails the run if either returns non-200, so an outage reaches the repo owner through GitHub's workflow-failure notification within minutes. It deliberately does **not** run `/api/health/extract`, because that would execute a real TikTok extraction on a timer. `/api/health/extract` does exist and runs the known-good link held in `HEALTHCHECK_URL`, but **nothing calls it on a schedule, so there is no automated test that extraction still works**; the original "ping a known-good link daily and alert" job is still the right thing to build.
 
 ### E. Repo, CI, deploy (item 6, locked)
 - **Monorepo** `tickless/` with `/frontend` and `/backend`. GitHub owner: vip-ultr (SSH already configured).
@@ -314,7 +382,7 @@ Rules: NO pop-ups, NO auto-play sound, NO sticky full-width mobile overlays, max
 - Frontend hosting: **$0** (Vercel free).
 - Backend hosting: **$0** (Render free — redirect-based design keeps us under bandwidth/hours limits).
 - Ad DB + image storage: **$0** (Supabase free tier, persistent).
-- Monitoring: **$0** (Sentry free, Vercel Analytics free).
+- Monitoring: **$0** (Vercel Analytics free. Sentry was planned but is not wired up; the keep-warm workflow and health endpoints are the monitoring today.)
 - Domain: **optional** — only real potential cost (~$10/yr). Can launch on free `*.vercel.app` + `*.onrender.com` subdomains at $0.
 
 **Verdict: buildable and runnable at $0** for personal/small scale. Only proxies/bandwidth cost money later at viral scale, deferred by design.
@@ -336,7 +404,7 @@ Rules: NO pop-ups, NO auto-play sound, NO sticky full-width mobile overlays, max
 12. **Security:** CORS locked to our domain + shared `X-Tickless-Key` header; input hardening (section 8.5-A).
 13. **Rate limit:** 10 req/min/IP via slowapi (8.5-B).
 14. **Legal entity:** Optivis Labs; DMCA contact email at launch (8.5-C).
-15. **Monitoring:** Sentry (FE+BE) + Vercel Analytics + daily health-check cron (8.5-D).
+15. **Monitoring:** Sentry (FE+BE) + Vercel Analytics + daily health-check cron (8.5-D). *(Vercel Analytics shipped. Sentry and the extraction health-check cron did not — see 8.5-D.)*
 16. **Repo/CI:** monorepo `tickless/`, main auto-deploys, PR previews (8.5-E).
 17. **Testing:** pytest backend + manual responsive QA + next/eslint build verify (8.5-F).
 18. **A11y/perf:** WCAG AA, reduced-motion, focus trap, Lighthouse 90+ (8.5-G).

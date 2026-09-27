@@ -50,6 +50,33 @@ lives under [Unreleased].
 
 ### Changed
 
+- **The `docs/` set was brought current with the code** for the first time
+  since most of it was written in July. Every document now carries a
+  *Written* / *Last updated* header and an honest status, and
+  `docs/README.md` is a real index with the maintenance rules (bump the date,
+  never delete a decision silently, feature plans become records once they
+  ship).
+  `product-plan.md` no longer claims "No code written yet": the extraction
+  section describes the Cobalt -> yt-dlp -> embed-markup cascade instead of the
+  never-built `aweme` fallback, the architecture diagram gained the sidecar and
+  Supabase, feature scope lists what ships and what is still open from v2, and
+  every build phase has a status. Its monitoring section was corrected: the
+  keep-warm workflow pings health endpoints and **no** scheduled job tests
+  extraction, and Sentry was never wired up.
+  Its brand-colour block is marked as superseded by locked decision 23, since
+  the shipped palette is green primary with no gradients and the two
+  contradicted each other.
+  `clip-feature-plan.md` and `instagram-plan.md` are marked shipped with the
+  releases that carried them, and flag the three places the code moved on
+  (carousels, the removed `/instagram` route, YouTube).
+  `content.md` was reconciled against the frontend for the first time since it
+  was written: Instagram, Clip, PWA, consent and ad strings added; the quality
+  selector, "Download another" and the slideshow teaser removed as never
+  shipped; error copy matched to `ERROR_MESSAGES`; section 10 logs all of it.
+  `growth-strategy.md` gained a "where this stands" block recording that
+  JSON-LD, `llms.txt` and the sitemap's `/clip` and `/dmca` entries are still
+  outstanding; `legal-posture.md` was reviewed and its health-check claim
+  corrected.
 - **Clear** is now a text-weight control with a `--danger` hover tint rather
   than a third full-size button, matching the subtle-destructive pattern
   already used in the admin panel. The action row reads as two primary buttons
