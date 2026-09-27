@@ -54,6 +54,10 @@ lives under [Unreleased].
   than a third full-size button, matching the subtle-destructive pattern
   already used in the admin panel. The action row reads as two primary buttons
   plus one quiet affordance.
+- **Audio (MP3) now sits before Clear** in the gallery action row. The audio
+  control is a real, full-sized action, so it belongs alongside Download and
+  Select all; Clear is the quiet destructive affordance and now trails the row
+  rather than splitting the two groups apart.
 
 ### Fixed
 

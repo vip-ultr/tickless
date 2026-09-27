@@ -393,17 +393,18 @@ function ResultCard({ data, sourceUrl, onReset }: { data: Result; sourceUrl: str
       {/* Gallery: the two primary controls live in a fixed two-column grid so
           they stay side by side even at 320px. Competing as flex siblings is
           what pushed them into a distorted vertical stack as soon as the label
-          grew to "Download (N)". Clear sits at their side but is text-weight,
-          so it never reads as a third big button -- the flex-wrap only drops it
-          onto its own line when there is genuinely no room for it. */}
+          grew to "Download (N)". Audio comes next as a normal-sized action,
+          and Clear trails the row: it is text-weight, so it never reads as a
+          third big button -- the flex-wrap only drops it onto its own line when
+          there is genuinely no room for it. */}
       {hasGallery ? (
         <div className="mt-5 flex flex-wrap items-center gap-x-3 gap-y-2">
           <div className="grid min-w-[280px] flex-1 grid-cols-2 gap-3">
             {primaryButton}
             {selectAllButton}
           </div>
-          {clearButton}
           {audioButton}
+          {clearButton}
           {downloading && (
             <span className="text-xs tx-muted">Preparing your files…</span>
           )}
