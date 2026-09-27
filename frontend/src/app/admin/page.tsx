@@ -15,6 +15,8 @@ type Ad = {
   image_url_mobile?: string | null;
   target_url: string;
   is_active: boolean;
+  starts_at?: string | null;
+  ends_at?: string | null;
   impressions: number;
   clicks: number;
   created_at: string;
@@ -55,6 +57,14 @@ const SLOT_LABELS: Record<string, string> = {
   in_content: "In content (mid page)",
   result: "Result (after download)",
 };
+
+/** Flight window as shown in the ad list. Dates are stored and served in UTC. */
+function flightLabel(ad: Ad): string {
+  if (!ad.starts_at && !ad.ends_at) return "always on";
+  const from = ad.starts_at ? ad.starts_at.slice(0, 10) : "open";
+  const to = ad.ends_at ? ad.ends_at.slice(0, 10) : "open";
+  return `${from} to ${to}`;
+}
 
 /** Brand-styled dropdown replacing the native <select>. */
 function SlotSelect({
@@ -374,6 +384,31 @@ function Dashboard({ token, onLogout }: { token: string; onLogout: () => void })
           </div>
           <div className="min-w-0">
             <label className="mb-1.5 block text-xs font-medium uppercase tracking-wider tx-muted">
+              Flight starts <span className="normal-case tx-muted">(optional)</span>
+            </label>
+            <input
+              name="starts_at"
+              type="date"
+              className="glass w-full min-w-0 rounded-xl px-4 py-3 text-sm outline-none tx [color-scheme:dark]"
+            />
+            <p className="mt-1.5 px-1 text-xs tx-muted">Left empty: serves immediately.</p>
+          </div>
+          <div className="min-w-0">
+            <label className="mb-1.5 block text-xs font-medium uppercase tracking-wider tx-muted">
+              Flight ends <span className="normal-case tx-muted">(optional)</span>
+            </label>
+            <input
+              name="ends_at"
+              type="date"
+              className="glass w-full min-w-0 rounded-xl px-4 py-3 text-sm outline-none tx [color-scheme:dark]"
+            />
+            <p className="mt-1.5 px-1 text-xs tx-muted">
+              Left empty: runs until paused. Otherwise it serves through this day (UTC) and
+              stops at midnight after it.
+            </p>
+          </div>
+          <div className="min-w-0">
+            <label className="mb-1.5 block text-xs font-medium uppercase tracking-wider tx-muted">
               Desktop / primary image
             </label>
             <label className="glass flex w-full cursor-pointer items-center gap-3 rounded-xl px-4 py-3 text-sm">
@@ -452,6 +487,7 @@ function Dashboard({ token, onLogout }: { token: string; onLogout: () => void })
                 <p className="mt-1 text-xs tx-muted">
                   {ad.slot} ({SLOT_SIZE_HINTS[ad.slot] || ""}) · {ad.impressions} views · {ad.clicks} clicks ·{" "}
                   {ad.is_active ? "active" : "paused"}
+                  {ad.starts_at || ad.ends_at ? ` · flight ${flightLabel(ad)}` : ""}
                 </p>
               </div>
               <div className="flex items-center justify-end gap-2 sm:shrink-0">

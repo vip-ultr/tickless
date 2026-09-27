@@ -11,6 +11,7 @@ const PAGES: Array<[path: string, priority: number]> = [
   ["/clip", 0.8],
   ["/faq", 0.7],
   ["/about", 0.6],
+  ["/advertise", 0.5],
   ["/terms", 0.4],
   ["/privacy", 0.4],
   ["/copyright", 0.4],

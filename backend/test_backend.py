@@ -302,6 +302,96 @@ def test_ad_catalogue_is_cached_until_an_admin_changes_it(monkeypatch):
     ads_mod._dismissed.clear()
 
 
+def test_ad_campaign_windows_are_read():
+    """`starts_at`/`ends_at` finally decide whether an ad is served.
+
+    Both columns have existed in the schema and the create endpoint since the
+    ad system shipped, but nothing ever read them -- so a campaign booked for
+    two weeks would have kept serving indefinitely, which is a refund waiting
+    to happen. The window is asserted here against an explicit clock rather
+    than `now`, so the test cannot rot as the dates pass.
+    """
+    from datetime import datetime, timezone
+
+    import ads as ads_mod
+
+    def at(*args):
+        return datetime(*args, tzinfo=timezone.utc)
+
+    # A bare end date runs through the whole of that day (UTC), which is what
+    # "1-7 Oct" means to whoever bought it. Without the day being rolled over
+    # the campaign would switch off at midnight before the 7th began.
+    assert ads_mod._parse_ts("2026-10-07", end=True) == at(2026, 10, 8)
+    # An explicit time is taken literally.
+    assert ads_mod._parse_ts("2026-10-07T18:00:00+00:00", end=True) == at(2026, 10, 7, 18)
+    assert ads_mod._parse_ts("") is None
+    assert ads_mod._parse_ts("not-a-date") is None
+
+    # No window at all: a house ad, open-ended, always served.
+    assert ads_mod._within_flight({"starts_at": None, "ends_at": None}, at(2026, 10, 5)) is True
+    # Unparseable stamps must not silently vanish a paid campaign.
+    assert ads_mod._within_flight({"starts_at": "soon", "ends_at": ""}, at(2026, 10, 5)) is True
+
+    # Not started yet, then running once the start is reached.
+    upcoming = {"starts_at": "2026-11-01", "ends_at": None}
+    assert ads_mod._within_flight(upcoming, at(2026, 10, 5)) is False
+    assert ads_mod._within_flight(upcoming, at(2026, 11, 1)) is True
+
+    # Bare end date: still live on the day, gone the moment after.
+    ending = {"starts_at": None, "ends_at": "2026-10-07"}
+    assert ads_mod._within_flight(ending, at(2026, 10, 7, 23, 59)) is True
+    assert ads_mod._within_flight(ending, at(2026, 10, 8, 0, 0)) is False
+
+    # Explicit end time: exclusive, exactly as written.
+    stamped = {"starts_at": None, "ends_at": "2026-10-07T18:00:00+00:00"}
+    assert ads_mod._within_flight(stamped, at(2026, 10, 7, 17, 59)) is True
+    assert ads_mod._within_flight(stamped, at(2026, 10, 7, 18, 0)) is False
+
+
+def test_ad_serving_applies_the_campaign_window(monkeypatch):
+    """The window is enforced on the path that actually serves ads, not just
+    in the helper -- an out-of-window row must never reach a page."""
+    import ads as ads_mod
+    from starlette.testclient import TestClient
+
+    from main import app
+
+    rows = [
+        {"id": "house", "slot": "leaderboard", "starts_at": None, "ends_at": None},
+        {"id": "running", "slot": "in_content", "starts_at": "2000-01-01", "ends_at": "2099-01-01"},
+        {"id": "future", "slot": "in_content", "starts_at": "2099-01-01", "ends_at": None},
+        {"id": "over", "slot": "in_content", "starts_at": None, "ends_at": "2000-01-01"},
+    ]
+
+    class _Q:
+        def eq(self, *_args, **_kw):
+            return self
+
+        def execute(self):
+            class _Result:
+                data = rows
+
+            return _Result()
+
+    class _Table:
+        def select(self, *_args, **_kw):
+            return _Q()
+
+    class _FakeSupabase:
+        def table(self, _name):
+            return _Table()
+
+    monkeypatch.setattr(ads_mod, "_sb", lambda: _FakeSupabase())
+    ads_mod._dismissed.clear()
+
+    with TestClient(app) as client:
+        ads_mod._invalidate_ads()
+        served = {r["id"] for r in client.get("/api/ads").json()}
+
+    ads_mod._dismissed.clear()
+    assert served == {"house", "running"}
+
+
 def test_ad_cancel_requires_a_token():
     import ads as ads_mod
     from starlette.testclient import TestClient

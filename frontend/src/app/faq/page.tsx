@@ -10,7 +10,7 @@ export const metadata: Metadata = {
 const FAQS = [
   {
     q: "Is Tickless free?",
-    a: "Yes. There is no charge, no trial, and no card required. If ads appear later they are only there to cover server costs.",
+    a: "Yes. There is no charge, no trial, and no card required. Ads cover the server costs and nothing more.",
   },
   {
     q: "Do I need an account or an app?",
@@ -47,6 +47,10 @@ const FAQS = [
   {
     q: "Is this legal?",
     a: "Tickless is a tool. Download content you own or have permission to use, and respect the rights of creators. See the Copyright page for details.",
+  },
+  {
+    q: "Can I advertise on Tickless?",
+    a: "Yes. There are three static placements with published sizes and formats, and rates are quoted per campaign rather than posted publicly. See the Advertise page for the spec and the contact address.",
   },
 ];
 

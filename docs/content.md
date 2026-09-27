@@ -53,7 +53,7 @@ Menu aria-labels: "Open menu" and "Close menu"
 
 Footer columns:
 - Product: Home, FAQ
-- Company: About
+- Company: About, Advertise
 - Legal: Terms, Privacy, Copyright, DMCA
 
 The footer also carries a "Cookie settings" button that reopens the consent
@@ -112,7 +112,7 @@ renders `detail` verbatim, so these strings are the copy:
 - **Real HD.** When a high-resolution version exists, that is what you get. No quality loss.
 - **Nothing to install.** It runs in your browser on your phone, tablet, or computer.
 - **We keep nothing.** No accounts, no download history, no copies stored on our side.
-- **Actually free.** No trial, no card, no hidden export fee. Ads keep the lights on later, that is it.
+- **Actually free.** No trial, no card, no hidden export fee. Ads keep the lights on, that is it.
 - **Audio too.** Grab just the sound as an MP3 when that is all you need.
 
 ### Closing band
@@ -128,7 +128,7 @@ renders `detail` verbatim, so these strings are the copy:
 - **Heading:** Questions, answered.
 
 Q: Is Tickless free?
-A: Yes. There is no charge, no trial, and no card required. If ads appear later they are only there to cover server costs.
+A: Yes. There is no charge, no trial, and no card required. Ads cover the server costs and nothing more.
 
 Q: Do I need an account or an app?
 A: No. Tickless runs in your browser. There is nothing to sign up for and nothing to install.
@@ -157,6 +157,9 @@ A: Yes. Paste a TikTok or Instagram photo post link and every image shows up as 
 Q: Is this legal?
 A: Tickless is a tool. Download content you own or have permission to use, and respect the rights of creators. See the Copyright page for details.
 
+Q: Can I advertise on Tickless?
+A: Yes. There are three static placements with published sizes and formats, and rates are quoted per campaign rather than posted publicly. See the Advertise page for the spec and the contact address.
+
 ---
 
 ## 4. About page
@@ -175,20 +178,38 @@ Tickless is built by Optivis Labs, an independent software studio that ships rea
 
 ---
 
-## 5. Footer
+## 5. Advertise page (/advertise)
+
+Advertiser-facing. Reach figures are deliberately not published, so the page
+carries specs, rules and process instead of numbers, and rates are quoted per
+flight.
+
+- **Title tag:** Advertise - Tickless
+- **Heading:** Advertise on Tickless.
+- **Lead:** Three static placements, one contact, no middleman. Tell us what you are promoting and we come back with availability and a quote.
+- **Sections, in order:** Who you would be reaching (Good fit / Not a fit cards) · Placements (Leaderboard, In content, Result - each drawn at its own aspect ratio) · Creative spec · Rules we do not bend · How it works (4 steps) · Rates · Contact.
+- **Rates copy:** "Contact for rates" - states that no rate card is published because price depends on unit, flight length and what else is booked.
+- **Contact:** `mailto:` to `ADS_EMAIL` with a prefilled subject "Advertising enquiry - Tickless" and a five-line body prompt (company, destination URL, placement, dates, budget); the address is also printed as plain text.
+- **Sizes quoted:** leaderboard desktop 728 x 180 (or 970 x 180) / mobile 480 x 90 (or 728 x 90); in content desktop 728 x 180 / mobile 480 x 140; result desktop 728 x 250 / mobile 480 x 220. These mirror `SLOT_SIZE_HINTS` in the admin panel and `SLOT_SIZES` in `AdSlot.tsx` - update all three together.
+- **Rules stated:** max 3 units per page, fixed reserved height, labelled "Ad" with a per-visit dismiss, no pop-ups / autoplay audio / sticky mobile overlays, never over the input or the download button, no third-party tracking cookies.
+- **Linked from:** footer "Company" column and the sitemap. Deliberately NOT from the nav bar, which carries conversion links only.
+
+---
+
+## 6. Footer
 
 - Wordmark: Tickless
 - Short line: The clean way to save TikTok and Instagram videos.
 - Columns:
   - Product: Home, FAQ
-  - Company: About
+  - Company: About, Advertise
   - Legal: Terms, Privacy, Copyright, DMCA
 - Button: Cookie settings
 - Bottom line: (c) 2026 Tickless by Optivis Labs. Not affiliated with TikTok, ByteDance, Instagram, or Meta.
 
 ---
 
-## 6. Legal pages
+## 7. Legal pages
 
 The shipped pages are full documents, not the one-line summaries this section
 originally held. The summaries below are the gist; the pages themselves are
@@ -216,7 +237,7 @@ authoritative. Terms carries its own "Last updated: 1 August 2026" stamp.
 
 ---
 
-## 7. Small UI strings (buttons, toasts, a11y)
+## 8. Small UI strings (buttons, toasts, a11y)
 
 - Nav open (mobile) button aria-label: "Open menu"
 - Nav close button aria-label: "Close menu"
@@ -254,14 +275,14 @@ authoritative. Terms carries its own "Last updated: 1 August 2026" stamp.
 
 ---
 
-## 8. Social / launch copy (for reserved handles)
+## 9. Social / launch copy (for reserved handles)
 
 - **Bio (X/IG):** Save TikTok and Instagram videos without the watermark. Free, no app, no sign-up. Built by Optivis Labs.
 - **Pinned/launch post:** Tickless is live. Paste a TikTok or Instagram link, get the clean video in HD, no watermark and no account. Free to use. [link]
 
 ---
 
-## 9. Clip page
+## 10. Clip page
 
 - **Title tag:** Clip - Trim TikTok & Instagram videos into clips | Tickless
 - **Meta description:** Trim any TikTok, Instagram, or YouTube video into clean clips. Cut one long video into many segments, or grab just the audio.
@@ -272,7 +293,7 @@ authoritative. Terms carries its own "Last updated: 1 August 2026" stamp.
 
 ---
 
-## 10. Reconciliation log
+## 11. Reconciliation log
 
 **2026-09-27 — first reconciliation since the document was written on
 2026-07-27.** A full read of the frontend against this document found the

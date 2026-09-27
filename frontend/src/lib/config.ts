@@ -5,6 +5,13 @@ export const API_URL =
 // Replace with a real monitored inbox before launch.
 export const CONTACT_EMAIL = "legal@tickless.app";
 
+// Sales/advertising inbox, surfaced on /advertise. Kept separate from the
+// legal address above so a paid enquiry never lands in a takedown queue.
+// BLOCKER: this mailbox must actually exist (and tickless.app must have an MX
+// record) before /advertise is announced -- sitemap.ts still publishes
+// tickless.vercel.app as the canonical host, so confirm the domain first.
+export const ADS_EMAIL = "ads@tickless.app";
+
 export const NAV_LINKS = [
   { href: "/", label: "Home" },
   { href: "/faq", label: "FAQ" },

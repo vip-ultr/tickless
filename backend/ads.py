@@ -10,6 +10,7 @@ ephemeral and process-local -- see the page-load-scoped cancellation section.
 import os
 import time
 import uuid
+from datetime import datetime, timedelta, timezone
 
 import jwt
 from dotenv import load_dotenv
@@ -167,16 +168,75 @@ def _invalidate_ads() -> None:
     _ads_cache = None
 
 
+def _parse_ts(value, *, end: bool = False) -> datetime | None:
+    """Parse a Supabase `timestamptz` into an aware datetime, or None.
+
+    A missing or unparseable value yields None, which the caller treats as
+    "no bound" -- see `_within_flight`.
+
+    `end=True` additionally means the value is a bare date, in which case it
+    is pushed to the end of that day. The admin form writes `YYYY-MM-DD`, so
+    without this a campaign sold as "1-7 Oct" would switch itself off at
+    midnight before the 7th started, and the operator would be the one
+    discovering the off-by-one. Times written with an explicit component are
+    taken literally and remain exclusive.
+    """
+    if not value:
+        return None
+    if isinstance(value, datetime):
+        parsed = value
+    else:
+        text = str(value).strip()
+        if not text:
+            return None
+        bare_date = len(text) == 10 and "T" not in text and " " not in text
+        try:
+            parsed = datetime.fromisoformat(text.replace("Z", "+00:00"))
+        except ValueError:
+            return None
+        if bare_date and end:
+            parsed = parsed + timedelta(days=1)
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed
+
+
+def _within_flight(row: dict, now: datetime | None = None) -> bool:
+    """True when `row`'s campaign window contains `now`.
+
+    House ads leave `starts_at`/`ends_at` empty and must never be filtered
+    out, so a NULL bound -- or one we cannot parse -- means open-ended. The
+    failure mode is deliberately asymmetric: a bad timestamp shows an ad a
+    little long, whereas a bad timestamp that hid a row would silently stop
+    an advertiser's paid campaign.
+    """
+    now = now or datetime.now(timezone.utc)
+    starts = _parse_ts(row.get("starts_at"))
+    ends = _parse_ts(row.get("ends_at"), end=True)
+    if starts is not None and now < starts:
+        return False
+    if ends is not None and now >= ends:
+        return False
+    return True
+
+
 def _read_active_ads() -> list:
     """Synchronous Supabase read.
 
     Never call this directly -- go through `_active_ads`, which threads it, or
     it stalls every other request for its duration.
+
+    The campaign window is applied here rather than in the SQL so that one
+    cached read still serves every slot on the page, and so the rule is
+    testable without a live PostgREST. The cache TTL (60s) is the worst case
+    for a campaign ending: it may linger for up to a minute past `ends_at`.
     """
     sb = _sb()
     if not sb:
         return []
-    return sb.table("ads").select("*").eq("is_active", True).execute().data or []
+    rows = sb.table("ads").select("*").eq("is_active", True).execute().data or []
+    now = datetime.now(timezone.utc)
+    return [r for r in rows if _within_flight(r, now)]
 
 
 async def _active_ads() -> list:
@@ -281,6 +341,10 @@ async def create_ad(
     _require_configured()
     if slot not in VALID_SLOTS:
         raise HTTPException(status_code=400, detail="Invalid slot.")
+    starts = _parse_ts(starts_at)
+    ends = _parse_ts(ends_at, end=True)
+    if starts is not None and ends is not None and ends <= starts:
+        raise HTTPException(status_code=400, detail="The end date must be on or after the start date.")
 
     sb = _require_configured()
     desktop_url = await _upload_if_present(image_desktop, sb)

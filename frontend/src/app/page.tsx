@@ -16,7 +16,7 @@ const FEATURES = [
   { icon: Sparkles, title: "Real HD", body: "When a high-resolution version exists, that is what you get. No quality loss." },
   { icon: MonitorSmartphone, title: "Nothing to install", body: "It runs in your browser on your phone, tablet, or computer." },
   { icon: EyeOff, title: "We keep nothing", body: "No accounts, no download history, no copies stored on our side." },
-  { icon: BadgeCheck, title: "Actually free", body: "No trial, no card, no hidden export fee. Ads keep the lights on later, that is it." },
+  { icon: BadgeCheck, title: "Actually free", body: "No trial, no card, no hidden export fee. Ads keep the lights on, that is it." },
   { icon: AudioLines, title: "Audio too", body: "Grab just the sound as an MP3 when that is all you need." },
 ];
 

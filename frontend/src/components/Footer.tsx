@@ -31,6 +31,9 @@ export function Footer() {
               <Link href="/about" className="text-sm tx-muted hover:tx">
                 About
               </Link>
+              <Link href="/advertise" className="text-sm tx-muted hover:tx">
+                Advertise
+              </Link>
             </div>
             <div className="flex flex-col gap-3">
               <span className="text-xs font-semibold uppercase tracking-wider tx">
