@@ -15,7 +15,7 @@ export function Footer() {
           </div>
           <div className="flex flex-col gap-6 sm:flex-row sm:gap-10 md:gap-12">
             <div className="flex flex-col gap-3">
-              <span className="text-xs font-semibold uppercase tracking-wider tx-muted">
+              <span className="text-xs font-semibold uppercase tracking-wider tx">
                 Product
               </span>
               {NAV_LINKS.filter((l) => l.label !== "About").map((l) => (
@@ -25,7 +25,7 @@ export function Footer() {
               ))}
             </div>
             <div className="flex flex-col gap-3">
-              <span className="text-xs font-semibold uppercase tracking-wider tx-muted">
+              <span className="text-xs font-semibold uppercase tracking-wider tx">
                 Company
               </span>
               <Link href="/about" className="text-sm tx-muted hover:tx">
@@ -33,7 +33,7 @@ export function Footer() {
               </Link>
             </div>
             <div className="flex flex-col gap-3">
-              <span className="text-xs font-semibold uppercase tracking-wider tx-muted">
+              <span className="text-xs font-semibold uppercase tracking-wider tx">
                 Legal
               </span>
               {FOOTER_LEGAL.map((l) => (
