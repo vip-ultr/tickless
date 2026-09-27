@@ -95,6 +95,31 @@ lives under [Unreleased].
   its own non-error state saying so, with a link to the download page, rather
   than the red danger panel — nothing about a photo-only carousel is broken.
   Single videos and uploads render exactly as they did before.
+- **An advertiser-facing page at `/advertise`.** The house-ad system already
+  held everything a buyer asks for — three slots, pixel targets, the format
+  and size limits, impression and click counters — but none of it was
+  reachable from outside `/admin`, so a brand wanting to buy a placement had
+  nowhere to land and only the legal inbox to write to. The page carries what
+  an enquiry actually needs: each placement drawn at its own aspect ratio
+  (leaderboard 728x180 / 480x90, in-content 728x180 / 480x140, result
+  728x250 / 480x220, matching `SLOT_SIZE_HINTS` in the admin and `SLOT_SIZES`
+  in `AdSlot.tsx`), the creative spec lifted out of `ads.py` (PNG/JPEG/WebP/
+  GIF, 2 MB, static images only, no HTML/JS/video/iframe, cover-cropped so
+  art has to be built to the box), the placement rules from the product plan
+  (max three units per page, fixed reserved height, labelled and dismissible
+  per visit, no pop-ups or autoplaying audio, never over the input or the
+  download button, no third-party tracking cookies), a Good-fit / Not-a-fit
+  pair of cards that filters the obvious bad buys, and a four-step process
+  ending in flight reporting drawn from counters that already exist.
+  Rates are deliberately **not** published: the page says so and explains
+  that price depends on unit, flight length and what else is booked, so
+  quoting per flight beats publishing a number that is wrong for most
+  readers. Contact is a `mailto:` to a new, dedicated `ADS_EMAIL` with the
+  subject and a five-line body prompt prefilled, and the address is also
+  printed as text — deliberately a different inbox from `CONTACT_EMAIL`, so a
+  paid enquiry never lands in the takedown queue. Linked from the footer's
+  Company column and added to the sitemap at 0.5, and **not** from the nav
+  bar, which carries conversion links only.
 
 ### Changed
 
@@ -134,6 +159,32 @@ lives under [Unreleased].
   control is a real, full-sized action, so it belongs alongside Download and
   Select all; Clear is the quiet destructive affordance and now trails the row
   rather than splitting the two groups apart.
+- **The cookie consent card went from three affordances to two.** The first
+  layer is now **Accept all** and **Reject all** as equal-weight buttons —
+  same height, width and weight, only the fill differs, which is the shape
+  CNIL fined Google, Meta, Microsoft and TikTok for not having — plus a
+  top-right **✕**, with "Manage choices" moved out of the button stack and
+  into the copy block where it belongs to the sentence it explains instead of
+  floating as a centred third pseudo-button. The ✕ is wired by the library to
+  `hide()` + `acceptCategory([])`, so dismissing the card is a rejection and
+  no optional cookie is written either way. "Manage choices" is a real
+  `<button data-cc="show-preferencesModal">` inside the description rather
+  than the library's `showPreferencesBtn` — that is what lets it sit in the
+  text at all, and the library re-binds `data-cc` against `.cm__body` when the
+  modal HTML is generated, so it stays live (clicked through, not assumed).
+  The card's surface also stopped being the light frosted tint, which at 88%
+  opacity let bright page content bleed through as grey haze, and now uses the
+  same near-opaque `.glass-strong` midnight slate as the nav, with a
+  `@supports` fallback for browsers without `backdrop-filter`. On mobile the
+  action row tightened from 44px to 40px buttons with reduced paddings,
+  taking the sheet to about 174px — roughly a fifth of a phone screen.
+- **The install prompt dropped its second button.** It rendered **Install**
+  next to a **Not now** control (labelled **Got it** on iOS), duplicating the
+  top-right ✕ the card already carries. One action now: **Install** where a
+  programmatic prompt exists, and on iOS — where no programmatic prompt does —
+  the card is informational and relies on the same ✕. The button row no
+  longer renders when there is no button in it, so the empty gap it would
+  have left is gone with it.
 
 ### Fixed
 
@@ -225,6 +276,33 @@ lives under [Unreleased].
   halves deploy independently — the no-`slot` form of the endpoint predates
   this change. `product-plan.md`'s ad-delivery paragraph now describes the
   same flow.
+- **Booked ad campaigns could never expire.** `starts_at` and `ends_at` have
+  been in the schema and accepted by `POST /api/admin/ads` since the ad system
+  shipped, but `_read_active_ads()` filtered on `is_active` alone — so a
+  two-week flight would have kept serving indefinitely, which is a refund
+  waiting to happen, and the admin offered no date fields to set in any case.
+  The window is now applied on the path that serves ads, deliberately in
+  Python after the one cached read rather than in SQL, so the single round
+  trip covering every slot on the page survives and the rule stays testable
+  without a live PostgREST. Two decisions worth knowing: a bare
+  `YYYY-MM-DD` end date runs through the **whole** of that day (UTC), so a
+  campaign sold as "1-7 Oct" means what both sides think it means instead of
+  switching off at midnight before the 7th began; and an unparseable
+  timestamp is treated as open-ended rather than as "hide it", because a bad
+  value should show an ad a little long rather than silently drop a paid one.
+  Rows with no bounds are untouched, so house ads — which leave both fields
+  empty — can never be filtered out, and the 60-second cache TTL bounds any
+  overrun past `ends_at`. The admin gained the two date fields with their
+  semantics spelled out underneath, shows the flight window in the list, and
+  `create_ad` now rejects `ends_at` before `starts_at`. Two tests cover the
+  window against an explicit clock, so they cannot rot as the dates pass.
+- **The site claimed it had no ads while rendering them.** The homepage
+  feature card said "Ads keep the lights on later" and the FAQ said "If ads
+  appear later they are only there to cover server costs" — on pages that were
+  already serving three ad slots. Both now describe ads as the thing paying
+  the bills. The FAQ also gained a "Can I advertise on Tickless?" entry
+  pointing at the new page, which is the only cross-link between the
+  visitor-facing and advertiser-facing halves of the site.
 
 ### Removed
 
