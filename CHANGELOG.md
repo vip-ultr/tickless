@@ -72,7 +72,13 @@ lives under [Unreleased].
   nothing that would contradict the privacy promise. Without a DSN the SDK is
   never even imported, so local and CI runs are exactly what they were before.
   Paste a DSN into the Render dashboard to turn it on. Frontend tracking is not
-  part of this change.
+  part of this change. `/api/health/config` gained a `sentry_configured`
+  boolean so a deployed container can be checked from the outside: it reports
+  whether the SDK actually initialised at boot and never echoes the key, which
+  is that endpoint's existing promise — report the wiring, leak no value.
+  `backend/.env.example` documents `SENTRY_DSN` and `SENTRY_ENV`, and
+  `frontend/.env.example` reserves `NEXT_PUBLIC_SENTRY_DSN` for the day
+  `@sentry/nextjs` lands; nothing reads that one yet.
 
 ### Changed
 
@@ -154,6 +160,12 @@ lives under [Unreleased].
   left the answer-engine bots to an implicit default and would have been
   silently overridden by any later blanket rule. They now get an explicit
   allow-list ahead of the catch-all.
+- **`frontend/.env.example` was never actually in the repository.** The 0.3.0
+  release notes list it as shipped, but `frontend/.gitignore`'s blanket `.env*`
+  overrode the root `!.env.example` negation, so the file existed only on the
+  machine that created it and a fresh clone had no frontend template at all.
+  The negation now lives in `frontend/.gitignore`, where it can actually reach,
+  and the file is committed for the first time.
 
 ### Removed
 

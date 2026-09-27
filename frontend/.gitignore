@@ -32,6 +32,9 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+# ...but keep the example files versioned, otherwise new contributors have no
+# template to copy. The root .gitignore's !.env.example cannot reach in here.
+!.env.example
 
 # vercel
 .vercel

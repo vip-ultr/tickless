@@ -75,6 +75,9 @@ limiter = Limiter(key_func=get_remote_address)
 # the local and CI case. send_default_pii stays explicitly off: the privacy page
 # and legal posture both promise we do not identify users, and Sentry's default
 # would otherwise attach cookies and IP-derived data to every event.
+# SENTRY_ENABLED is reported (as a boolean only) by /api/health/config so the
+# deployed container can be checked without ever echoing the key itself.
+SENTRY_ENABLED = False
 if os.getenv("SENTRY_DSN"):
     import sentry_sdk
     from sentry_sdk.integrations.fastapi import FastApiIntegration
@@ -87,6 +90,7 @@ if os.getenv("SENTRY_DSN"):
         traces_sample_rate=0.0,
         environment=os.getenv("SENTRY_ENV", "production"),
     )
+    SENTRY_ENABLED = True
 
 app = FastAPI(title="Tickless API", version="1.0.0")
 app.state.limiter = limiter
@@ -340,6 +344,9 @@ async def health_config():
                 and cookie_env.strip().startswith("# Netscape")
                 and "SAPISID" in cookie_env,
             "youtube_po_token_enabled": bool(YOUTUBE_USE_POT),
+            # Boolean only. Tells you whether the SDK initialised at boot,
+            # without echoing the DSN (main.py never reports its value).
+            "sentry_configured": SENTRY_ENABLED,
         }
     except Exception as e:  # never 500 the diagnostic
         return JSONResponse(status_code=200, content={"error": f"{type(e).__name__}: {e}"})
