@@ -90,7 +90,9 @@ lives under [Unreleased].
 - **Download all.** Select all stages the carousel and **Download (N)** fires
   it, so the same capability is reachable without a third competing button.
 - The `mobile/` React Native app, which was never part of a release. Its source
-  stays recoverable from git history.
+  stays recoverable from git history, and the `docs/mobile-app-{research,plan,
+  handoff}.md` planning notes went with it so contributors aren't pointed at an
+  app the repo doesn't contain.
 
 ## [1.0.0] - 2026-09-26
 
