@@ -18,17 +18,25 @@ lives under [Unreleased].
 
 ### Added
 
-- **Multi-select carousel downloads.** Gallery chips are now toggleable — one
-  tap ticks the item *and* moves the single-item preview to it, so the existing
-  **Download** button keeps behaving exactly as it did. Ticking two or more
-  changes that button's label to **Download (N)** and its behaviour to fetch
-  just those items through the same staggered loop **Download all** uses; with
-  none or one ticked it stays a native `<a href>`, which deliberately keeps it
-  off the CORS path the filename fix below depends on. The row therefore stays
-  at two buttons however many items are selected. Small **Select all** / **Clear**
-  controls save the taps on long carousels, chips carry `aria-pressed` for
-  assistive tech, and both bulk buttons disable under a shared "Preparing your
-  files…" status while a run is in flight.
+- **Multi-select carousel downloads.** Gallery chips are toggleable — one tap
+  ticks the item *and* moves the single-item preview to it, so the single-item
+  **Download** keeps behaving exactly as it did. Ticking two or more relabels
+  that button to **Download (N)** and points it at the staged items through the
+  same staggered loop; with none or one ticked it stays a native `<a href>`,
+  which deliberately keeps it off the CORS path the filename fix below depends
+  on. Chips carry `aria-pressed` for assistive tech, selected indices are
+  clamped to the current gallery length, and both bulk actions disable under a
+  shared "Preparing your files…" status while a run is in flight.
+- **Select all** is a primary action of its own: a `ListChecks`-icon button
+  that stages the whole carousel in one tap, ready for **Download (N)**. This
+  is what takes over from Download all below.
+
+### Changed
+
+- **Clear** is now a text-weight control with a `--danger` hover tint rather
+  than a third full-size button, matching the subtle-destructive pattern
+  already used in the admin panel. The action row reads as two primary buttons
+  plus one quiet affordance.
 
 ### Fixed
 
@@ -49,9 +57,17 @@ lives under [Unreleased].
   photo can never be saved as a video even if the header goes missing again.
   Covered by `test_cors_exposes_content_disposition`, A/B verified to fail
   without the fix.
+- **On mobile the action row collapsed into a distorted vertical stack** as
+  soon as the label grew to "Download (N)" — two controls that should sit side
+  by side pushed each other onto their own lines and came out misshapen. The
+  two primary controls now live in a fixed two-column grid, which cannot stack
+  at any viewport width, with Clear flex-wrapping onto its own line only when
+  there is genuinely no room left for it.
 
 ### Removed
 
+- **Download all.** Select all stages the carousel and **Download (N)** fires
+  it, so the same capability is reachable without a third competing button.
 - The `mobile/` React Native app, which was never part of a release. Its source
   stays recoverable from git history.
 

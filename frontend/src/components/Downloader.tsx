@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { Download, ClipboardPaste, Loader2, Music } from "lucide-react";
+import { Download, ClipboardPaste, Loader2, Music, ListChecks, X } from "lucide-react";
 import { motion } from "framer-motion";
 import { API_URL } from "@/lib/config";
 import { AdSlot } from "./AdSlot";
@@ -266,12 +266,18 @@ function ResultCard({ data, sourceUrl, onReset }: { data: Result; sourceUrl: str
     setDownloading(false);
   };
 
-  const downloadAll = () => downloadIndices(gallery.map((_, idx) => idx));
   // `selected` is keyed by index; if the same URL re-extracts with a shorter
   // gallery, drop any now out-of-range indices rather than requesting them.
   const selection = [...selected]
     .filter((idx) => idx >= 0 && idx < gallery.length)
     .sort((a, b) => a - b);
+  const allSelected = hasGallery && selection.length === gallery.length;
+
+  // "Select all" is the bulk path now -- it stages the whole carousel and the
+  // primary Download button fires it, so there is no separate Download-all
+  // button to maintain alongside it.
+  const selectAll = () => setSelected(new Set(gallery.map((_, idx) => idx)));
+  const clearSelection = () => setSelected(new Set());
   const downloadSelected = () => downloadIndices(selection);
 
   // The primary Download button always acts on the selection when there is
@@ -281,6 +287,63 @@ function ResultCard({ data, sourceUrl, onReset }: { data: Result; sourceUrl: str
     selection.length === 1 ? dl("video", selection[0]) : dl("video");
   const primaryLabel =
     selection.length >= 2 ? `Download (${selection.length})` : "Download";
+
+  const primaryButton =
+    selection.length >= 2 ? (
+      <button
+        type="button"
+        onClick={downloadSelected}
+        disabled={downloading}
+        className="btn-brand flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold disabled:opacity-60"
+      >
+        <Download size={16} />
+        {primaryLabel}
+      </button>
+    ) : (
+      <a
+        href={primaryUrl}
+        className="btn-brand flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold"
+      >
+        <Download size={16} /> {primaryLabel}
+      </a>
+    );
+
+  const selectAllButton = (
+    <button
+      type="button"
+      onClick={selectAll}
+      disabled={downloading || allSelected}
+      className="glass flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold disabled:opacity-60"
+    >
+      <ListChecks size={16} />
+      Select all
+    </button>
+  );
+
+  // Deliberately not a third big button: a text-weight control with a hover
+  // tint, matching the subtle-destructive pattern used in the admin panel.
+  const clearButton = (
+    <button
+      type="button"
+      onClick={clearSelection}
+      disabled={downloading || selection.length === 0}
+      className="inline-flex shrink-0 items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs tx-muted transition-colors hover:text-[var(--danger)] disabled:opacity-40"
+      aria-label="Clear selection"
+    >
+      <X size={13} />
+      Clear
+    </button>
+  );
+
+  const audioButton =
+    itemType === "video" ? (
+      <a
+        href={dl("audio")}
+        className="glass flex shrink-0 items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold"
+      >
+        <Music size={16} /> Audio (MP3)
+      </a>
+    ) : null;
 
   return (
     <motion.div
@@ -327,68 +390,30 @@ function ResultCard({ data, sourceUrl, onReset }: { data: Result; sourceUrl: str
         </div>
       </div>
 
-      <div className="mt-5 flex flex-wrap gap-3">
-        {selection.length >= 2 ? (
-          <button
-            type="button"
-            onClick={downloadSelected}
-            disabled={downloading}
-            className="btn-brand flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold disabled:opacity-60"
-          >
-            <Download size={16} />
-            {primaryLabel}
-          </button>
-        ) : (
-          <a
-            href={primaryUrl}
-            className="btn-brand flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold"
-          >
-            <Download size={16} /> {primaryLabel}
-          </a>
-        )}
-        {hasGallery && (
-          <button
-            type="button"
-            onClick={downloadAll}
-            disabled={downloading}
-            className="btn-brand flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold disabled:opacity-60"
-          >
-            <Download size={16} />
-            Download all
-          </button>
-        )}
-        {hasGallery && (
-          <div className="flex items-center gap-3 self-center text-xs">
-            <button
-              type="button"
-              onClick={() => setSelected(new Set(gallery.map((_, idx) => idx)))}
-              disabled={downloading || selected.size === gallery.length}
-              className="tx underline-offset-2 hover:underline disabled:opacity-40"
-            >
-              Select all
-            </button>
-            <button
-              type="button"
-              onClick={() => setSelected(new Set())}
-              disabled={downloading || selected.size === 0}
-              className="tx-muted underline-offset-2 hover:underline disabled:opacity-40"
-            >
-              Clear
-            </button>
+      {/* Gallery: the two primary controls live in a fixed two-column grid so
+          they stay side by side even at 320px. Competing as flex siblings is
+          what pushed them into a distorted vertical stack as soon as the label
+          grew to "Download (N)". Clear sits at their side but is text-weight,
+          so it never reads as a third big button -- the flex-wrap only drops it
+          onto its own line when there is genuinely no room for it. */}
+      {hasGallery ? (
+        <div className="mt-5 flex flex-wrap items-center gap-x-3 gap-y-2">
+          <div className="grid min-w-[280px] flex-1 grid-cols-2 gap-3">
+            {primaryButton}
+            {selectAllButton}
           </div>
-        )}
-        {downloading && (
-          <span className="self-center text-xs tx-muted">Preparing your files…</span>
-        )}
-        {itemType === "video" && (
-          <a
-            href={dl("audio")}
-            className="glass flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold"
-          >
-            <Music size={16} /> Audio (MP3)
-          </a>
-        )}
-      </div>
+          {clearButton}
+          {audioButton}
+          {downloading && (
+            <span className="text-xs tx-muted">Preparing your files…</span>
+          )}
+        </div>
+      ) : (
+        <div className="mt-5 flex flex-wrap items-center gap-3">
+          {primaryButton}
+          {audioButton}
+        </div>
+      )}
     </motion.div>
   );
 }
