@@ -1,6 +1,6 @@
 """Manual video clipping for Tickless.
 
-Ported from my-video-clipper's ffmpeg pipeline (option B): one source video,
+Ported from a project I did before (my-video-clipper), using the ffmpeg pipeline (option B): one source video,
 the user marks several start/end segments, each becomes a clip. No AI, no
 subtitles/blur/watermark/aspect (those are explicitly out of scope).
 
