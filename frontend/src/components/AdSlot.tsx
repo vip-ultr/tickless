@@ -131,7 +131,7 @@ export function AdSlot({
             aria-label="Cancel ads for this visit"
             className="pointer-events-auto flex cursor-pointer items-center gap-1 rounded bg-black/60 px-1.5 py-0.5 text-[10px] uppercase tracking-wider tx-muted transition-colors hover:bg-black/85 hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-white/70"
           >
-            <X size={10} /> Cancel
+            <X size={14} />
           </button>
         </div>
         <a
