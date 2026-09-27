@@ -112,7 +112,7 @@ export function Navbar() {
                     className="glass flex items-center gap-4 rounded-2xl px-4 py-4 active:scale-[0.98]"
                   >
                     <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[oklch(0.78_0.16_195_/_0.15)]">
-                      <l.icon size={18} className="tx-accent" />
+                      <l.icon size={18} className="tx" />
                     </span>
                     <span className="min-w-0">
                       <span className="block font-semibold">{l.label}</span>
