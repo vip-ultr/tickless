@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
+import Link from "next/link";
 import {
   Scissors,
   Link2,
@@ -26,6 +27,11 @@ type Source = {
   duration: number | null;
   title: string;
   objectUrl?: string; // local upload preview
+  // Carousel support. Both are set only for a genuinely multi-slide post, so a
+  // single video and an upload keep behaving exactly as they did before.
+  gallery?: string[]; // every slide, in the post's own order
+  galleryTypes?: string[]; // parallel to gallery: "video" | "photo"
+  slideIndex?: number; // loaded slide, as an index into gallery (not into videos)
 };
 
 type Clip = {
@@ -34,13 +40,28 @@ type Clip = {
   end: number;
   audioOnly: boolean;
   filename: string;
+  // Which slide this clip was cut from, captured when Add clip was pressed.
+  // Kept per clip (not read off `source` at render time) so clips queued from
+  // several videos keep pointing at their own video after the player moves on.
+  slideIndex?: number;
 };
 
 type State =
   | { kind: "idle" }
   | { kind: "loading"; slow: boolean }
   | { kind: "ready"; source: Source }
-  | { kind: "error"; message: string };
+  | { kind: "error"; message: string }
+  // A carousel with no video in it. Not an error, so it gets its own state and
+  // its own copy instead of the red danger panel.
+  | { kind: "photos"; count: number };
+
+/** An error whose message is already written for the user to read. Anything
+ *  else (a network TypeError, say) falls back to generic copy. */
+function userError(message: string): Error {
+  const e = new Error(message);
+  e.name = "UserError";
+  return e;
+}
 
 function fmt(t: number): string {
   if (!isFinite(t) || t < 0) return "0:00";
@@ -67,13 +88,51 @@ export function ClipEditor() {
   const [clips, setClips] = useState<Clip[]>([]);
   const [segPlaying, setSegPlaying] = useState(false);
 
+  // Carousel selection. `pendingIndex` is the slide the user just clicked and
+  // we are still fetching; it goes null once the new source lands (or fails).
+  const [pendingIndex, setPendingIndex] = useState<number | null>(null);
+  const [itemError, setItemError] = useState<string | null>(null);
+
   const key = process.env.NEXT_PUBLIC_API_KEY || "";
   const authHeader: Record<string, string> = key ? { "X-Tickless-Key": key } : {};
 
+  // Which slides can actually be trimmed. Photos are dropped: there is no
+  // stream to cut, and a mixed Instagram carousel is mostly photos. The index
+  // stays the post's own (0-based into gallery) because that is what the
+  // backend indexes with - the video-only list is a display concern only.
+  const slides = source?.gallery ?? [];
+  const galleryTypes = source?.galleryTypes ?? [];
+  const hasSlides = slides.length > 1;
+  const videoSlides = hasSlides
+    ? slides
+        .map((_, index) => ({ index, photo: galleryTypes[index] === "photo" }))
+        .filter((s) => !s.photo)
+    : [];
+  const photoCount = hasSlides ? slides.length - videoSlides.length : 0;
+  const switching = pendingIndex !== null;
+
   // ── source load ──────────────────────────────────────────────────────────
+  /** Fetch one source into an object URL the <video> can preview.
+   *  `slideIndex` selects a carousel item; omitted, the backend serves the
+   *  single item (or the post's primary) exactly as it always did. */
+  async function fetchPreview(sourceUrl: string, slideIndex?: number): Promise<string> {
+    const params = new URLSearchParams({ url: sourceUrl, kind: "video" });
+    if (key) params.set("key", key);
+    if (slideIndex !== undefined) params.set("gallery_index", String(slideIndex));
+    const res = await fetch(`${API_URL}/api/download?${params.toString()}`);
+    if (!res.ok) {
+      // Without this the error JSON was fed to <video> as if it were media,
+      // which shows a dead player instead of a reason.
+      const body = await res.json().catch(() => ({}));
+      throw userError(body.detail || "Could not read that link.");
+    }
+    return URL.createObjectURL(await res.blob());
+  }
+
   async function loadFromUrl(e: React.FormEvent) {
     e.preventDefault();
     if (!url.trim()) return;
+    const link = url.trim();
     setState({ kind: "loading", slow: false });
     const slowTimer = setTimeout(
       () => setState((s) => (s.kind === "loading" ? { kind: "loading", slow: true } : s)),
@@ -83,35 +142,82 @@ export function ClipEditor() {
       const res = await fetch(`${API_URL}/api/extract`, {
         method: "POST",
         headers: { "Content-Type": "application/json", ...authHeader },
-        body: JSON.stringify({ url: url.trim() }),
+        body: JSON.stringify({ url: link }),
       });
       if (!res.ok) {
         const b = await res.json().catch(() => ({}));
         setState({ kind: "error", message: b.detail || "Could not read that link." });
         return;
       }
-      
+
       const data = await res.json();
-      // Fetch the clean video to a temp blob we can preview locally.
-      const dl = `${API_URL}/api/download?url=${encodeURIComponent(
-        url.trim(),
-      )}&kind=video${key ? `&key=${encodeURIComponent(key)}` : ""}`;
-      const vidRes = await fetch(dl);
-      const blob = await vidRes.blob();
-      const objectUrl = URL.createObjectURL(blob);
+      const postSlides: string[] = data.gallery ?? [];
+      const postTypes: string[] = data.gallery_types ?? [];
+      const isCarousel = postSlides.length > 1;
+      const videos = isCarousel
+        ? postTypes.map((t, index) => ({ index, photo: t === "photo" })).filter((v) => !v.photo)
+        : [];
+
+      if (isCarousel && videos.length === 0) {
+        setState({ kind: "photos", count: postSlides.length });
+        return;
+      }
+
+      // Open on the first video, never on slide 1: a carousel's first slide is
+      // very often a photo, which is what used to land a JPEG in the player.
+      const slideIndex = isCarousel ? videos[0].index : undefined;
+      const objectUrl = await fetchPreview(link, slideIndex);
+
       const s: Source = {
         kind: "url",
-        url: url.trim(),
+        url: link,
         duration: data.duration ?? null,
         title: data.title || "video",
         objectUrl,
+        gallery: isCarousel ? postSlides : undefined,
+        galleryTypes: isCarousel ? postTypes : undefined,
+        slideIndex,
       };
       setSource(s);
       setState({ kind: "ready", source: s });
-    } catch {
-      setState({ kind: "error", message: "Something went wrong. Try again in a moment." });
+    } catch (err) {
+      setState({
+        kind: "error",
+        message:
+          err instanceof Error && err.name === "UserError"
+            ? err.message
+            : "Something went wrong. Try again in a moment.",
+      });
     } finally {
       clearTimeout(slowTimer);
+    }
+  }
+
+  /** Swap the player onto another slide of the same post. */
+  async function selectSlide(index: number) {
+    if (!source?.url || source.slideIndex === index || pendingIndex !== null) return;
+    setPendingIndex(index);
+    setItemError(null);
+    try {
+      const objectUrl = await fetchPreview(source.url, index);
+      // Drop the outgoing clip's listeners before the element changes media,
+      // or a stale timeupdate handler keeps firing against the new source.
+      segStop.current?.();
+      setSegPlaying(false);
+      if (source.objectUrl) URL.revokeObjectURL(source.objectUrl);
+      // The trim range belonged to the previous slide; carrying it over could
+      // leave the end handle past the new video's duration.
+      setStart(0);
+      setEnd(0);
+      setSource({ ...source, objectUrl, slideIndex: index, duration: null });
+    } catch (err) {
+      setItemError(
+        err instanceof Error && err.name === "UserError"
+          ? err.message
+          : "Could not load that video. Try another one.",
+      );
+    } finally {
+      setPendingIndex(null);
     }
   }
 
@@ -231,12 +337,16 @@ export function ClipEditor() {
     if (end <= start) return;
     const base = (source.title || "tickless-clip").replace(/\.[^.]+$/, "");
     const ext = audioOnly ? "mp3" : "mp4";
+    const slide = source.slideIndex;
     const clip: Clip = {
       id: crypto.randomUUID(),
       start,
       end,
       audioOnly,
-      filename: `${base}_clip_${clips.length + 1}.${ext}`,
+      // Name the slide on a carousel so clips queued from two different videos
+      // never come out identical. Single videos and uploads are untouched.
+      filename: `${base}${slide !== undefined ? `_v${slide + 1}` : ""}_clip_${clips.length + 1}.${ext}`,
+      slideIndex: slide,
     };
     setClips((c) => [...c, clip]);
   }
@@ -256,8 +366,15 @@ export function ClipEditor() {
       end: String(clip.end),
       audio_only: String(clip.audioOnly),
     });
-    if (source.kind === "upload") params.set("token", source.token || "");
-    else params.set("source_url", source.url || "");
+    if (source.kind === "upload") {
+      params.set("token", source.token || "");
+    } else {
+      params.set("source_url", source.url || "");
+      // Read off the CLIP, not the source: by the time the user downloads,
+      // the player may have moved on to another slide, and every queued clip
+      // must still trim the video it was marked on.
+      if (clip.slideIndex !== undefined) params.set("gallery_index", String(clip.slideIndex));
+    }
     if (key) params.set("key", key);
     return `${API_URL}/api/clip?${params.toString()}`;
   }
@@ -343,6 +460,21 @@ export function ClipEditor() {
               {state.message}
             </div>
           )}
+          {state.kind === "photos" && (
+            <div className="mt-4 rounded-2xl border-l-2 border-[var(--brand-primary)] p-4">
+              <p className="text-sm tx">
+                This carousel has {state.count} photo{state.count !== 1 ? "s" : ""} and no video,
+                so there is nothing here to trim.
+              </p>
+              <p className="mt-1 text-xs tx-muted">
+                Photos are not videos — save them from the{" "}
+                <Link href="/" className="underline hover:tx">
+                  download page
+                </Link>{" "}
+                instead.
+              </p>
+            </div>
+          )}
           <p className="mt-3 px-1 text-xs tx-muted">
             URL mode works with TikTok / Instagram / YouTube. Or upload a video from your device (max 500 MB).
           </p>
@@ -353,8 +485,8 @@ export function ClipEditor() {
         <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="space-y-5">
           {/* Editor card */}
           <div className="glass rounded-2xl p-5">
-            <div className="flex items-center justify-between">
-              <p className="text-sm font-medium">{source.title}</p>
+            <div className="flex items-center justify-between gap-3">
+              <p className="min-w-0 truncate text-sm font-medium">{source.title}</p>
               <button
                 onClick={() => {
                   if (source.objectUrl) URL.revokeObjectURL(source.objectUrl);
@@ -363,18 +495,63 @@ export function ClipEditor() {
                   setState({ kind: "idle" });
                   setStart(0);
                   setEnd(0);
+                  setPendingIndex(null);
+                  setItemError(null);
                 }}
-                className="text-xs tx-muted hover:tx"
+                className="shrink-0 text-xs tx-muted hover:tx"
               >
                 Change source
               </button>
             </div>
 
+            {/* Carousel picker. Only rendered for a genuinely multi-slide post,
+                and only ever lists the videos — a photo has no stream to trim.
+                The chips use the post's own slide order via `index`, which is
+                what the backend expects, while the label counts videos so the
+                first chip reads "Video 1" even when it is slide 3. */}
+            {hasSlides && (
+              <div className="mt-4">
+                <p className="text-xs tx-muted">
+                  {videoSlides.length} video{videoSlides.length !== 1 ? "s" : ""} in this carousel
+                  {photoCount > 0 &&
+                    ` · ${photoCount} photo${photoCount !== 1 ? "s" : ""} skipped, photos can't be trimmed`}
+                </p>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {videoSlides.map((s, n) => {
+                    const active = source.slideIndex === s.index || pendingIndex === s.index;
+                    const isPending = pendingIndex === s.index;
+                    return (
+                      <button
+                        key={s.index}
+                        type="button"
+                        onClick={() => selectSlide(s.index)}
+                        disabled={switching}
+                        aria-pressed={active}
+                        className={`flex shrink-0 items-center gap-1.5 rounded-lg border-2 px-3 py-1.5 text-xs font-medium transition-colors disabled:opacity-60 ${
+                          active
+                            ? "border-[var(--brand-primary)] bg-[var(--brand-primary)]/10 tx"
+                            : "border-transparent bg-[var(--glass-border)] tx-muted hover:tx"
+                        }`}
+                      >
+                        {isPending ? (
+                          <Loader2 size={12} className="animate-spin" />
+                        ) : (
+                          <Play size={12} />
+                        )}
+                        Video {n + 1}
+                      </button>
+                    );
+                  })}
+                </div>
+                {itemError && <p className="mt-2 text-xs text-[var(--danger)]">{itemError}</p>}
+              </div>
+            )}
+
             {/* The player is height-capped so a tall portrait video never blows
                 past the viewport on desktop. object-contain keeps the WHOLE clip
                 visible (black letterbox), and the trim controls stay on-screen
                 right below it. Mobile keeps the natural full-width behavior. */}
-            <div className="mt-4 overflow-hidden rounded-xl bg-black">
+            <div className="relative mt-4 overflow-hidden rounded-xl bg-black">
               <video
                 ref={videoRef}
                 src={source.objectUrl}
@@ -382,6 +559,13 @@ export function ClipEditor() {
                 controls
                 className="mx-auto block max-h-[70vh] w-full object-contain"
               />
+              {/* Swapping slides swaps the media, so keep the frame up while the
+                  new one downloads instead of flashing an empty player. */}
+              {switching && (
+                <div className="absolute inset-0 flex items-center justify-center bg-black/60">
+                  <Loader2 size={28} className="animate-spin text-white" />
+                </div>
+              )}
             </div>
 
             {/* trim handles */}

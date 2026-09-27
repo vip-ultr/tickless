@@ -79,6 +79,22 @@ lives under [Unreleased].
   `backend/.env.example` documents `SENTRY_DSN` and `SENTRY_ENV`, and
   `frontend/.env.example` reserves `NEXT_PUBLIC_SENTRY_DSN` for the day
   `@sentry/nextjs` lands; nothing reads that one yet.
+- **A slide picker on the Clip page.** A multi-slide post now opens on its
+  first *video* instead of its first slide, with a chip per video so the user
+  can move between them and queue clips from several in one session. Photos are
+  never offered — there is no stream to trim and a mixed Instagram carousel is
+  usually mostly photos — so they are summarised in one caption ("N videos · M
+  photos skipped") rather than listed as though they were choices. Each chip
+  carries the slide's own index into the gallery, which is what the backend
+  resolves with, while the label counts *videos* so the first chip reads
+  "Video 1" even when it sits at slide 3. Only the selected video is fetched,
+  on selection rather than up front, so a ten-item post costs one download
+  instead of ten; switching stops the outgoing playback, revokes the old object
+  URL and resets the trim handles, because carrying an end point past the new
+  video's duration would quietly cut nothing. A post with no video at all gets
+  its own non-error state saying so, with a link to the download page, rather
+  than the red danger panel — nothing about a photo-only carousel is broken.
+  Single videos and uploads render exactly as they did before.
 
 ### Changed
 
@@ -166,6 +182,26 @@ lives under [Unreleased].
   machine that created it and a fresh clone had no frontend template at all.
   The negation now lives in `frontend/.gitignore`, where it can actually reach,
   and the file is committed for the first time.
+- **The Clip page fed a JPEG to its own player.** `/api/download` was called
+  with no `gallery_index`, so it fell back to slide 1 — and on a mixed
+  carousel slide 1 is very often a photo. The preview then handed
+  `image/jpeg` bytes to `<video>`, which is why a post that previewed perfectly
+  on the download page came up broken here. The player now asks for the video
+  it actually wants. The endpoint already supported the index, so nothing on
+  that side changed; the request was simply never made.
+- **Instagram links could never be clipped at all.** `/api/clip` resolved its
+  source with yt-dlp alone and had no `gallery_index` parameter, while
+  `/api/extract` and `/api/download` both route Instagram through Cobalt —
+  yt-dlp is rate-limited for Instagram from this IP. Every Instagram clip
+  request therefore answered 502, even while the preview beside it loaded
+  fine. Both paths now go through one shared resolver, so the slide shown in
+  the preview is by construction the slide that gets trimmed, and the endpoint
+  gained `gallery_index` (clamped, so a stray index cannot 500) plus the `_N`
+  filename suffix `/api/download` already applied, so two clips taken from
+  different slides cannot save over each other. A resolved photo is refused
+  with the same 400 a TikTok photo post already returns, instead of letting
+  ffmpeg fail into an opaque 502. TikTok and YouTube keep the yt-dlp path that
+  already worked, which `test_clip_tiktok_still_uses_ytdlp` now pins.
 
 ### Removed
 

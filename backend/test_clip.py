@@ -184,3 +184,168 @@ def test_clip_get_native_download(client, tmp_path):
     assert r.headers["content-disposition"].startswith("attachment")
     assert r.headers["content-type"] == "video/mp4"
     assert len(r.content) > 0
+
+
+# ---------------------------------------------------- carousels (no ffmpeg, no network)
+
+IG_CAROUSEL = "https://www.instagram.com/p/DdxDDh5iGKH/?stkn=YTVjOTBmdGluM2d6"
+
+
+def _mixed_carousel() -> dict:
+    """The shape Cobalt really returns for a mixed Instagram carousel: the only
+    video sits at slide 3 and everything around it is a photo."""
+    return {
+        "title": "hate me or love me",
+        "author": "lamineyamal",
+        "duration": None,
+        "thumbnail": None,
+        "video_url": "https://cdn.example/v3.mp4",
+        "audio_url": None,
+        "width": None,
+        "height": None,
+        "gallery": [
+            "https://cdn.example/s1.jpg",
+            "https://cdn.example/s2.jpg",
+            "https://cdn.example/s3.mp4",
+            "https://cdn.example/s4.jpg",
+            "https://cdn.example/s5.jpg",
+        ],
+        "gallery_types": ["photo", "photo", "video", "photo", "photo"],
+    }
+
+
+@pytest.fixture
+def carousel(monkeypatch):
+    """Fake the whole Instagram path: Cobalt metadata, the CDN fetch, the trim.
+
+    Records every URL actually fetched so a test can assert WHICH slide was
+    used, and gives the fetched file the extension the real proxy derives from
+    the response content-type, so the endpoint's photo guard sees the truth.
+    """
+    fetched: list[str] = []
+
+    def fake_cobalt_extract(url):
+        return _mixed_carousel()
+
+    async def fake_proxy(url, dest_dir):
+        fetched.append(url)
+        ext = ".mp4" if url.endswith(".mp4") else ".jpg"
+        path = os.path.join(dest_dir, f"source{ext}")
+        with open(path, "wb") as f:
+            f.write(b"\x00\x00\x00\x18ftypmp42")
+        return path
+
+    def fake_trim(src, start, end, out, audio_only):
+        with open(out, "wb") as f:
+            f.write(b"clip")
+
+    monkeypatch.setattr("main.cobalt_extract", fake_cobalt_extract)
+    monkeypatch.setattr("main._proxy_remote_media", fake_proxy)
+    monkeypatch.setattr("main.trim_segment", fake_trim)
+    return fetched
+
+
+def test_clip_trims_the_slide_the_user_picked(client, carousel):
+    """The point of the fix: gallery_index picks the slide, and the slide shown
+    in the preview is the slide that gets trimmed."""
+    r = client.get(
+        f"/api/clip?source_url={IG_CAROUSEL}&start=0&end=1&gallery_index=2",
+        headers=_hdr(),
+    )
+    assert r.status_code == 200, r.text
+    assert carousel == ["https://cdn.example/s3.mp4"], carousel
+
+
+def test_clip_refuses_a_photo_slide(client, carousel):
+    """With no index this lands on slide 1, which is a photo. A photo has no
+    stream to trim, so it must come back as a clean 400 rather than an
+    ffmpeg 502."""
+    r = client.get(
+        f"/api/clip?source_url={IG_CAROUSEL}&start=0&end=1", headers=_hdr()
+    )
+    assert r.status_code == 400, r.text
+
+
+def test_clip_out_of_range_index_is_clamped_not_500(client, carousel):
+    """An index past the end clamps to the last slide instead of erroring."""
+    r = client.get(
+        f"/api/clip?source_url={IG_CAROUSEL}&start=0&end=1&gallery_index=99",
+        headers=_hdr(),
+    )
+    assert carousel == ["https://cdn.example/s5.jpg"], carousel
+    assert r.status_code == 400, r.text  # last slide is a photo, so refused
+
+
+def test_clip_filename_carries_the_slide_number(client, carousel):
+    """Two clips trimmed from different slides must not save as the same name."""
+    r = client.get(
+        f"/api/clip?source_url={IG_CAROUSEL}&start=0&end=1&gallery_index=2",
+        headers=_hdr(),
+    )
+    assert r.status_code == 200, r.text
+    assert "_3 - Tickless.mp4" in r.headers["content-disposition"], r.headers
+
+
+def test_clip_instagram_never_touches_ytdlp(client, carousel, monkeypatch):
+    """Instagram is rate-limited on yt-dlp from this IP: routing through it is
+    what made every Instagram clip answer 502 while its preview worked."""
+
+    def _boom(*a, **k):
+        raise AssertionError("yt-dlp must not be used for an Instagram clip")
+
+    monkeypatch.setattr("main.download_media", _boom)
+    r = client.get(
+        f"/api/clip?source_url={IG_CAROUSEL}&start=0&end=1&gallery_index=2",
+        headers=_hdr(),
+    )
+    assert r.status_code == 200, r.text
+
+
+def test_clip_single_video_post_keeps_its_old_filename(client, monkeypatch):
+    """A non-carousel post must be byte-for-byte what it was before carousels:
+    no index, no _N suffix, still 200."""
+    data = _mixed_carousel()
+    data["gallery"] = None
+    data["gallery_types"] = None
+
+    async def fake_proxy(url, dest_dir):
+        path = os.path.join(dest_dir, "source.mp4")
+        with open(path, "wb") as f:
+            f.write(b"\x00\x00\x00\x18ftypmp42")
+        return path
+
+    monkeypatch.setattr("main.cobalt_extract", lambda url: data)
+    monkeypatch.setattr("main._proxy_remote_media", fake_proxy)
+    monkeypatch.setattr(
+        "main.trim_segment", lambda s, a, b, o, au: open(o, "wb").write(b"clip")
+    )
+
+    r = client.get(
+        f"/api/clip?source_url={IG_CAROUSEL}&start=0&end=1", headers=_hdr()
+    )
+    assert r.status_code == 200, r.text
+    assert "hate me or love me - Tickless.mp4" in r.headers["content-disposition"]
+
+
+def test_clip_tiktok_still_uses_ytdlp(client, monkeypatch):
+    """Regression guard: only Instagram moved to Cobalt. TikTok and YouTube
+    keep the yt-dlp path that already worked."""
+
+    def fake_download_media(url, dest_dir, kind="video"):
+        path = os.path.join(dest_dir, "source.mp4")
+        with open(path, "wb") as f:
+            f.write(b"x")
+        return path, "tiktok title", "uploader"
+
+    monkeypatch.setattr("main.download_media", fake_download_media)
+    monkeypatch.setattr(
+        "main.trim_segment", lambda s, a, b, o, au: open(o, "wb").write(b"clip")
+    )
+
+    r = client.post(
+        "/api/clip",
+        json={"source_url": "https://tiktok.com/@a/video/1", "start": 0, "end": 1},
+        headers=_hdr(),
+    )
+    assert r.status_code == 200, r.text
+    assert "tiktok title - Tickless.mp4" in r.headers["content-disposition"]

@@ -252,6 +252,45 @@ async def _proxy_remote_media(url: str, tmpdir: str) -> str:
     return final
 
 
+async def _cobalt_media_file(
+    clean: str, dest_dir: str, gallery_index: int | None, noun: str
+) -> tuple[str, str, str]:
+    """Fetch ONE item of a Cobalt-served post into dest_dir.
+
+    Shared by /api/download and /api/clip so that a preview and the trim it
+    feeds always resolve to the same carousel item — that is the whole point
+    of passing an index through. `gallery_index` is clamped, so an out-of-range
+    index can never 500 a request.
+
+    Instagram is served through Cobalt everywhere (extract, download, and now
+    clip): yt-dlp is rate-limited for Instagram from this IP, which is why the
+    clip endpoint used to answer 502 to every Instagram link while the preview
+    beside it worked fine.
+
+    Returns (path, title, uploader). Raises HTTPException on failure.
+    """
+    try:
+        cdata = await run_in_threadpool(cobalt_extract, clean)
+    except ExtractionError as e:
+        # Cobalt returns no_media when Instagram blocks the fetch; yt-dlp can
+        # still succeed on a good IP, so mirror /api/extract's fallback.
+        if e.code != "no_media":
+            raise
+        try:
+            return await run_in_threadpool(download_media, clean, dest_dir, "video")
+        except Exception:
+            raise HTTPException(status_code=400, detail=ERROR_MESSAGES["no_media"])
+    gallery = cdata.get("gallery") or []
+    safe_index = max(0, min(int(gallery_index or 0), len(gallery) - 1)) if gallery else 0
+    primary_url = gallery[safe_index] if gallery else cdata.get("video_url")
+    if not primary_url and cdata.get("photo_urls"):
+        primary_url = cdata["photo_urls"][0]
+    if not primary_url:
+        raise HTTPException(status_code=502, detail=ERROR_MESSAGES["no_media"])
+    p = await _proxy_remote_media(primary_url, dest_dir)
+    return p, cdata.get("title") or f"{noun} post", cdata.get("author") or ""
+
+
 def _require_key(x_tickless_key: str | None):
     # If no key configured (local dev), allow. In prod the key is always set.
     if API_KEY and x_tickless_key != API_KEY:
@@ -452,39 +491,13 @@ async def api_download(
         Used for Instagram (always) and for TikTok photo posts, which yt-dlp
         cannot handle. Cobalt URLs are signed/tunnel links, so they must be
         proxied through us rather than handed to the browser.
+
+        The whole fetch lives in _cobalt_media_file so /api/clip resolves the
+        same item the same way; the "_N" filename suffix is still applied later
+        (see the stem handling near build_download_filename), NOT here, or
+        names come out as "_1_1".
         """
-        try:
-            cdata = await run_in_threadpool(cobalt_extract, clean)
-        except ExtractionError as e:
-            # Instagram photo posts need an authenticated/non-rate-limited
-            # IP; Cobalt returns no_media when Instagram blocks the fetch.
-            # yt-dlp hits the same wall from this IP, but if the IP ever
-            # recovers (or a valid cookie is wired up) it can pull the
-            # image, so fall back to it instead of failing outright.
-            if e.code != "no_media":
-                raise
-            try:
-                path, title, uploader = await run_in_threadpool(
-                    download_media, clean, tmpdir, "video"
-                )
-                return path, title, uploader
-            except Exception:
-                # yt-dlp raises DownloadError (not ExtractionError) and hits
-                # the same Instagram block; surface the honest no_media msg.
-                raise HTTPException(status_code=400, detail=ERROR_MESSAGES["no_media"])
-        gallery = cdata.get("gallery") or []
-        safe_index = max(0, min(int(gallery_index or 0), len(gallery) - 1)) if gallery else 0
-        primary_url = gallery[safe_index] if gallery else cdata.get("video_url")
-        if not primary_url and cdata.get("photo_urls"):
-            primary_url = cdata["photo_urls"][0]
-        if not primary_url:
-            raise HTTPException(status_code=502, detail=ERROR_MESSAGES["no_media"])
-        p = await _proxy_remote_media(primary_url, tmpdir)
-        t = cdata.get("title") or f"{noun} post"
-        # NOTE: the per-item "_N" suffix is appended later (see the stem
-        # handling near build_download_filename), so do NOT add it here or
-        # filenames come out as "_1_1".
-        return p, t, cdata.get("author") or ""
+        return await _cobalt_media_file(clean, tmpdir, gallery_index, noun)
 
     try:
         if platform == "instagram":
@@ -584,6 +597,10 @@ class ClipRequest(BaseModel):
     start: float
     end: float
     audio_only: bool = False
+    # Which item of a multi-item post to trim (0-based). Set only by carousels;
+    # a single-video post or an upload leaves it None so filenames and routing
+    # behave exactly as they did before carousels were supported.
+    gallery_index: int | None = None
 
 
 @limiter.limit("10/minute")
@@ -637,6 +654,7 @@ async def api_clip(
     start: float | None = None,
     end: float | None = None,
     audio_only: bool = False,
+    gallery_index: int | None = None,
     x_tickless_key: str | None = Header(default=None),
     key: str | None = None,
 ):
@@ -662,6 +680,7 @@ async def api_clip(
                 start=float(start if start is not None else 0),
                 end=float(end if end is not None else 0),
                 audio_only=bool(audio_only),
+                gallery_index=gallery_index,
             )
         except (ValueError, TypeError):
             raise HTTPException(status_code=400, detail="Missing or invalid start/end.")
@@ -690,17 +709,27 @@ async def api_clip(
             if not src:
                 raise HTTPException(status_code=404, detail="Upload not found or expired. Re-upload the video.")
         else:
-            # Reuse the verified download path: yt-dlp for TikTok/YouTube,
-            # Cobalt fallback for TikTok photo posts. Instagram is not a clip
-            # source here (it is rate-limited from this IP).
+            # Reuse the verified download path: yt-dlp for TikTok/YouTube, and
+            # Cobalt for TikTok photo posts. Instagram is handled below.
             try:
                 clean, platform = normalize_and_validate(body.source_url or "")
             except ValueError:
                 raise HTTPException(status_code=400, detail=ERROR_MESSAGES["unsupported"])
             try:
-                src, source_title, _ = await run_in_threadpool(
-                    download_media, clean, workdir, "video"
-                )
+                if platform == "instagram":
+                    # Resolve through the same helper /api/download uses, with
+                    # the index the user picked, so the slide shown in the
+                    # preview is the slide that gets trimmed. yt-dlp is
+                    # rate-limited for Instagram from this IP, which is why
+                    # every Instagram clip request used to answer 502 while
+                    # the preview beside it worked fine.
+                    src, source_title, _ = await _cobalt_media_file(
+                        clean, workdir, body.gallery_index, "instagram"
+                    )
+                else:
+                    src, source_title, _ = await run_in_threadpool(
+                        download_media, clean, workdir, "video"
+                    )
             except ExtractionError as e:
                 if e.code != "use_cobalt":
                     raise HTTPException(
@@ -718,6 +747,14 @@ async def api_clip(
 
         if not src or not os.path.isfile(src):
             raise HTTPException(status_code=502, detail=ERROR_MESSAGES["no_media"])
+
+        # A photo has no stream to trim. A carousel can be photo-only, so
+        # reject it with the same 400 a TikTok photo post already gets instead
+        # of letting ffmpeg fail into a confusing 502. The outer handler
+        # removes workdir. Only real image types are caught — an unknown
+        # content-type lands as .bin and may still be a valid video.
+        if os.path.splitext(src)[1].lower() in (".jpg", ".jpeg", ".png", ".webp", ".gif"):
+            raise HTTPException(status_code=400, detail=ERROR_MESSAGES["slideshow"])
 
         ext = "mp3" if body.audio_only else "mp4"
         out_path = os.path.join(workdir, f"clip.{ext}")
@@ -738,7 +775,13 @@ async def api_clip(
         # build_download_filename appends " - Tickless" itself, so pass the raw
         # source title as the title; the per-clip label comes from the caller's
         # editable filename on the frontend, not here.
-        utf8_name, ascii_name = build_download_filename(source_title, "", ext)
+        # index= mirrors what /api/download already does for carousels: it adds
+        # an _N suffix so two clips trimmed from different slides cannot collide.
+        # It is None for a single-video post or an upload, so those names are
+        # exactly what they were before carousels were supported.
+        utf8_name, ascii_name = build_download_filename(
+            source_title, "", ext, index=body.gallery_index
+        )
 
         def stream_and_cleanup():
             try:
