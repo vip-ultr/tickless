@@ -3,6 +3,9 @@
 Gracefully disabled when SUPABASE_URL is not configured:
   - GET /api/ads returns [] (frontend renders nothing)
   - admin routes return 503
+
+Visitors can also cancel ads for the current browser session. That state is
+deliberately ephemeral and process-local -- see the session-cancel section.
 """
 import os
 import time
@@ -11,6 +14,7 @@ import uuid
 import jwt
 from dotenv import load_dotenv
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Header, UploadFile
+from pydantic import BaseModel
 
 load_dotenv()
 
@@ -42,6 +46,59 @@ def _require_configured():
     if not sb:
         raise HTTPException(status_code=503, detail="Ad system not configured.")
     return sb
+
+
+# ------------------------------------------- session-scoped cancellation
+
+# Cancellation is deliberately ephemeral. The client mints a random id and keeps
+# it in sessionStorage, so closing the tab mints a fresh id and the ads return on
+# the next visit -- which is exactly the product rule ("you just have to cancel
+# on every visit"). Nothing here is permanent, and nothing here is tied to IP or
+# to a login, because both would leak the cancellation into later visits.
+#
+# Held in process memory rather than Supabase: this is session state, not
+# catalogue data, so it should evaporate on restart and must never accumulate
+# rows. Render's free tier is single-instance, so a dict is the right store here.
+
+_DISMISS_TTL = 12 * 60 * 60  # seconds; far longer than any realistic tab lifetime
+_DISMISS_MAX = 10_000        # hard cap so an unauthenticated flood cannot grow memory
+_dismissed: dict[str, float] = {}  # session id -> expiry (epoch seconds)
+
+
+def _prune_dismissals(now: float) -> None:
+    """Drop expired entries, then the oldest, so the map stays bounded."""
+    for sid in [s for s, exp in _dismissed.items() if exp <= now]:
+        _dismissed.pop(sid, None)
+    if len(_dismissed) <= _DISMISS_MAX:
+        return
+    # dict preserves insertion order, so the leading keys are the oldest.
+    overflow = len(_dismissed) - _DISMISS_MAX
+    for sid in list(_dismissed)[:overflow]:
+        _dismissed.pop(sid, None)
+
+
+def _session_id(raw: str | None) -> str | None:
+    """Normalise a client-supplied session id; None when there is no usable one."""
+    if not raw:
+        return None
+    sid = raw.strip()[:64]
+    return sid or None
+
+
+def _is_dismissed(session: str) -> bool:
+    """True while the session's cancellation is still live."""
+    now = time.time()
+    exp = _dismissed.get(session)
+    if exp is None:
+        return False
+    if exp <= now:
+        _dismissed.pop(session, None)
+        return False
+    return True
+
+
+class DismissRequest(BaseModel):
+    session: str
 
 
 # ---------------------------------------------------------------- auth
@@ -77,8 +134,16 @@ async def admin_login(username: str = Form(...), password: str = Form(...)):
 # ---------------------------------------------------------------- public
 
 @router.get("/api/ads")
-async def get_ads(slot: str | None = None):
-    """Active ads for a slot (or all). Returns [] when system disabled."""
+async def get_ads(slot: str | None = None, session: str | None = None):
+    """Active ads for a slot (or all).
+
+    Returns [] when the system is disabled, when the slot is unknown, or when
+    this visitor cancelled ads for the current session -- so the cancellation
+    is honoured server-side too, not only by the button hiding the slot.
+    """
+    sid = _session_id(session)
+    if sid and _is_dismissed(sid):
+        return []
     sb = _sb()
     if not sb:
         return []
@@ -89,6 +154,22 @@ async def get_ads(slot: str | None = None):
         q = q.eq("slot", slot)
     rows = q.execute().data or []
     return rows
+
+
+@router.post("/api/ads/dismiss")
+async def dismiss_ads(body: DismissRequest):
+    """Cancel ads for the remainder of this browser session.
+
+    Only the session id is recorded, so the cancellation dies with the tab that
+    asked for it; a later visit mints a new id and sees ads again.
+    """
+    sid = _session_id(body.session)
+    if not sid:
+        raise HTTPException(status_code=400, detail="A session id is required.")
+    now = time.time()
+    _prune_dismissals(now)
+    _dismissed[sid] = now + _DISMISS_TTL
+    return {"ok": True, "expires_at": int(_dismissed[sid])}
 
 
 @router.post("/api/ads/{ad_id}/impression")

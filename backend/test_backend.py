@@ -180,6 +180,120 @@ def test_cors_exposes_content_disposition():
     )
 
 
+# ---- ad cancellation ----
+def test_ad_cancel_is_scoped_to_the_session(monkeypatch):
+    """Cancelling hides ads for that session only -- and never past the visit.
+
+    The product rule is "cancel on every visit": closing the tab mints a new
+    session id, so a later visit must get its ads back even though the previous
+    one cancelled them.
+    """
+    import ads as ads_mod
+    from starlette.testclient import TestClient
+
+    from main import app
+
+    class _Q:
+        def eq(self, *_args, **_kw):
+            return self
+
+        def execute(self):
+            class _Result:
+                data = [{"id": "ad-1", "slot": "leaderboard"}]
+
+            return _Result()
+
+    class _Table:
+        def select(self, *_args, **_kw):
+            return _Q()
+
+    class _FakeSupabase:
+        def table(self, _name):
+            return _Table()
+
+    # The suite runs without Supabase configured, which would make every
+    # assertion below vacuously true ([] == []).
+    monkeypatch.setattr(ads_mod, "_sb", lambda: _FakeSupabase())
+    ads_mod._dismissed.clear()
+
+    with TestClient(app) as client:
+        # Nothing cancelled yet: ads are served with and without a session.
+        assert len(client.get("/api/ads?slot=leaderboard").json()) == 1
+        assert (
+            len(client.get("/api/ads?slot=leaderboard&session=visit-1").json()) == 1
+        )
+
+        res = client.post("/api/ads/dismiss", json={"session": "visit-1"})
+        assert res.status_code == 200
+        assert res.json()["ok"] is True
+
+        # Same session, same visit: cancelled.
+        assert client.get("/api/ads?slot=leaderboard&session=visit-1").json() == []
+        # A later visit uses a fresh session id, so the ad is back.
+        assert (
+            len(client.get("/api/ads?slot=leaderboard&session=visit-2").json()) == 1
+        )
+        # Callers that send no session are unaffected.
+        assert len(client.get("/api/ads?slot=leaderboard").json()) == 1
+
+    ads_mod._dismissed.clear()
+
+
+def test_ad_cancel_requires_a_session_id():
+    import ads as ads_mod
+    from starlette.testclient import TestClient
+
+    from main import app
+
+    ads_mod._dismissed.clear()
+    with TestClient(app) as client:
+        # Blank/whitespace is rejected rather than silently keying on "".
+        assert client.post("/api/ads/dismiss", json={"session": "   "}).status_code == 400
+        # Missing field never reaches the handler.
+        assert client.post("/api/ads/dismiss", json={}).status_code == 422
+        # The stored id is capped, so a huge body cannot balloon the map.
+        client.post("/api/ads/dismiss", json={"session": "x" * 500})
+        assert all(len(sid) <= 64 for sid in ads_mod._dismissed)
+    ads_mod._dismissed.clear()
+
+
+def test_ad_cancel_expires_instead_of_persisting():
+    """A cancellation must lapse: it is session state, not a permanent opt-out."""
+    import time as _time
+
+    import ads as ads_mod
+    from starlette.testclient import TestClient
+
+    from main import app
+
+    ads_mod._dismissed.clear()
+    with TestClient(app) as client:
+        client.post("/api/ads/dismiss", json={"session": "visit-1"})
+        assert ads_mod._is_dismissed("visit-1") is True
+
+        # Simulate the tab outliving the TTL.
+        ads_mod._dismissed["visit-1"] = _time.time() - 1
+        assert ads_mod._is_dismissed("visit-1") is False
+        # Expiry also evicts, so the map does not grow unbounded.
+        assert "visit-1" not in ads_mod._dismissed
+    ads_mod._dismissed.clear()
+
+
+def test_ad_cancel_store_stays_bounded():
+    """The map is unauthenticated, so it must cap itself against a flood."""
+    import time as _time
+
+    import ads as ads_mod
+
+    ads_mod._dismissed.clear()
+    now = _time.time()
+    for i in range(ads_mod._DISMISS_MAX + 50):
+        ads_mod._dismissed[f"session-{i}"] = now + ads_mod._DISMISS_TTL
+    ads_mod._prune_dismissals(now)
+    assert len(ads_mod._dismissed) <= ads_mod._DISMISS_MAX
+    ads_mod._dismissed.clear()
+
+
 # ---- visit analytics ----
 from analytics import visitor_hash
 
