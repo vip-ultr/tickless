@@ -30,21 +30,23 @@ lives under [Unreleased].
 - **Select all** is a primary action of its own: a `ListChecks`-icon button
   that stages the whole carousel in one tap, ready for **Download (N)**. This
   is what takes over from Download all below.
-- **Cancel ads for the current visit.** Every house ad now carries a small
-  **Cancel** control beside its **Visit** badge. Pressing it hides all ad slots
-  for the rest of the browser session and records the cancellation against a
-  session id the frontend mints into `sessionStorage`. Because that id dies with
-  the tab, the next visit gets a fresh one, the backend has no record for it,
-  and the ads come back — the opt-out is per visit by construction, never
-  permanent, and nothing is tied to IP or login that could leak it into a later
-  session. Server-side, `POST /api/ads/dismiss` stores the cancellation with a
-  TTL and `GET /api/ads?session=…` honours it, so a reload inside the same
-  session stays cancelled even if the local flag is lost. The store is
-  process-local and hard-capped rather than Supabase-backed: it is session
-  state, it should evaporate on restart, and it must not accumulate rows for an
-  unauthenticated endpoint. The **Visit** label keeps its old behaviour — it
-  sits in a `pointer-events-none` wrapper so clicks still fall through to the
-  ad link, and only **Cancel** opts back in.
+- **Cancel ads for the current page load.** Every house ad now carries a small
+  **Cancel** control beside its **Visit** badge. Pressing it hides the ad slots
+  for the rest of the page view and records the cancellation against a token
+  the frontend mints in memory. Nothing is written to storage, so a reload mints
+  a fresh token the backend has never seen and the ad comes back immediately —
+  the opt-out lasts exactly one page load and is never permanent, while
+  client-side navigation keeps it alive for the rest of the visit. Nothing is
+  keyed on IP or login, either of which would leak it into a later load.
+  Server-side, `POST /api/ads/dismiss` records the cancellation and
+  `GET /api/ads?session=…` honours it, so a slot that mounts after the press is
+  filtered too even if the local flag were lost; its TTL only bounds how long an
+  orphaned record lingers — it is not what brings the ad back, the fresh token
+  is. The store is process-local and hard-capped rather than Supabase-backed:
+  it is per-page-view state, it should evaporate on restart, and it must not
+  accumulate rows for an unauthenticated endpoint. The **Visit** label keeps its
+  old behaviour — it sits in a `pointer-events-none` wrapper so clicks still
+  fall through to the ad link, and only **Cancel** opts back in.
 
 ### Changed
 

@@ -181,12 +181,12 @@ def test_cors_exposes_content_disposition():
 
 
 # ---- ad cancellation ----
-def test_ad_cancel_is_scoped_to_the_session(monkeypatch):
-    """Cancelling hides ads for that session only -- and never past the visit.
+def test_ad_cancel_is_scoped_to_the_page_load(monkeypatch):
+    """Cancelling hides ads for this page load only -- never past a reload.
 
-    The product rule is "cancel on every visit": closing the tab mints a new
-    session id, so a later visit must get its ads back even though the previous
-    one cancelled them.
+    The product rule is that refreshing brings the ads back: the client mints a
+    fresh token on every load, so a later page load must get its ads back even
+    though the previous one cancelled them.
     """
     import ads as ads_mod
     from starlette.testclient import TestClient
@@ -217,29 +217,29 @@ def test_ad_cancel_is_scoped_to_the_session(monkeypatch):
     ads_mod._dismissed.clear()
 
     with TestClient(app) as client:
-        # Nothing cancelled yet: ads are served with and without a session.
+        # Nothing cancelled yet: ads are served with and without a token.
         assert len(client.get("/api/ads?slot=leaderboard").json()) == 1
         assert (
-            len(client.get("/api/ads?slot=leaderboard&session=visit-1").json()) == 1
+            len(client.get("/api/ads?slot=leaderboard&session=load-1").json()) == 1
         )
 
-        res = client.post("/api/ads/dismiss", json={"session": "visit-1"})
+        res = client.post("/api/ads/dismiss", json={"session": "load-1"})
         assert res.status_code == 200
         assert res.json()["ok"] is True
 
-        # Same session, same visit: cancelled.
-        assert client.get("/api/ads?slot=leaderboard&session=visit-1").json() == []
-        # A later visit uses a fresh session id, so the ad is back.
+        # Same token, same page load: cancelled.
+        assert client.get("/api/ads?slot=leaderboard&session=load-1").json() == []
+        # A reload mints a fresh token, so the ad is back.
         assert (
-            len(client.get("/api/ads?slot=leaderboard&session=visit-2").json()) == 1
+            len(client.get("/api/ads?slot=leaderboard&session=load-2").json()) == 1
         )
-        # Callers that send no session are unaffected.
+        # Callers that send no token are unaffected.
         assert len(client.get("/api/ads?slot=leaderboard").json()) == 1
 
     ads_mod._dismissed.clear()
 
 
-def test_ad_cancel_requires_a_session_id():
+def test_ad_cancel_requires_a_token():
     import ads as ads_mod
     from starlette.testclient import TestClient
 
@@ -251,14 +251,14 @@ def test_ad_cancel_requires_a_session_id():
         assert client.post("/api/ads/dismiss", json={"session": "   "}).status_code == 400
         # Missing field never reaches the handler.
         assert client.post("/api/ads/dismiss", json={}).status_code == 422
-        # The stored id is capped, so a huge body cannot balloon the map.
+        # The stored token is capped, so a huge body cannot balloon the map.
         client.post("/api/ads/dismiss", json={"session": "x" * 500})
         assert all(len(sid) <= 64 for sid in ads_mod._dismissed)
     ads_mod._dismissed.clear()
 
 
 def test_ad_cancel_expires_instead_of_persisting():
-    """A cancellation must lapse: it is session state, not a permanent opt-out."""
+    """A cancellation must lapse: it is per-page-view state, not a permanent opt-out."""
     import time as _time
 
     import ads as ads_mod
@@ -268,14 +268,14 @@ def test_ad_cancel_expires_instead_of_persisting():
 
     ads_mod._dismissed.clear()
     with TestClient(app) as client:
-        client.post("/api/ads/dismiss", json={"session": "visit-1"})
-        assert ads_mod._is_dismissed("visit-1") is True
+        client.post("/api/ads/dismiss", json={"session": "load-1"})
+        assert ads_mod._is_dismissed("load-1") is True
 
-        # Simulate the tab outliving the TTL.
-        ads_mod._dismissed["visit-1"] = _time.time() - 1
-        assert ads_mod._is_dismissed("visit-1") is False
+        # Simulate the record outliving the page load that created it.
+        ads_mod._dismissed["load-1"] = _time.time() - 1
+        assert ads_mod._is_dismissed("load-1") is False
         # Expiry also evicts, so the map does not grow unbounded.
-        assert "visit-1" not in ads_mod._dismissed
+        assert "load-1" not in ads_mod._dismissed
     ads_mod._dismissed.clear()
 
 
@@ -288,7 +288,7 @@ def test_ad_cancel_store_stays_bounded():
     ads_mod._dismissed.clear()
     now = _time.time()
     for i in range(ads_mod._DISMISS_MAX + 50):
-        ads_mod._dismissed[f"session-{i}"] = now + ads_mod._DISMISS_TTL
+        ads_mod._dismissed[f"load-{i}"] = now + ads_mod._DISMISS_TTL
     ads_mod._prune_dismissals(now)
     assert len(ads_mod._dismissed) <= ads_mod._DISMISS_MAX
     ads_mod._dismissed.clear()

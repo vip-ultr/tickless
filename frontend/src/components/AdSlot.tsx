@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useSyncExternalStore, useState } from "react";
 import { ExternalLink, X } from "lucide-react";
 import { API_URL } from "@/lib/config";
 
@@ -21,27 +21,49 @@ const SLOT_SIZES: Record<string, string> = {
   result: "h-[220px] md:h-[250px]",
 };
 
-// Session-scoped ad cancellation. Both keys live in sessionStorage, so they die
-// with the tab: reopening the site mints a new session id, the backend has no
-// record for it, and the ads come back. That is the product rule -- the user
-// cancels once per visit, never permanently.
-const AD_SESSION_KEY = "tickless_ad_session";
-const ADS_CANCELLED_KEY = "tickless_ads_cancelled";
+// Ad cancellation lasts exactly one page load. Deliberately nothing here is
+// written to storage: this module is re-evaluated on reload, which mints a new
+// token and resets `adsDismissed`, so refreshing brings the ads straight back.
+// Client-side navigation keeps the module alive, so the cancellation still
+// covers the rest of the visit -- it just never survives a reload.
+let pageToken: string | null = null;
 
-function adSessionId(): string {
-  let sid = sessionStorage.getItem(AD_SESSION_KEY);
-  if (!sid) {
-    sid =
+function pageViewId(): string {
+  if (!pageToken) {
+    pageToken =
       typeof crypto !== "undefined" && "randomUUID" in crypto
         ? crypto.randomUUID()
         : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`;
-    sessionStorage.setItem(AD_SESSION_KEY, sid);
   }
-  return sid;
+  return pageToken;
 }
 
-function adsCancelled(): boolean {
-  return sessionStorage.getItem(ADS_CANCELLED_KEY) === "1";
+// Held at module scope so one press hides every slot, including the ones
+// already on screen. Read through useSyncExternalStore rather than component
+// state: there is no single component that owns it, and the server snapshot
+// keeps the statically prerendered pages away from anything browser-only.
+let adsDismissed = false;
+const dismissListeners = new Set<() => void>();
+
+function getDismissed(): boolean {
+  return adsDismissed;
+}
+
+function getServerDismissed(): boolean {
+  return false;
+}
+
+function dismissAds(): void {
+  if (adsDismissed) return;
+  adsDismissed = true;
+  dismissListeners.forEach((listener) => listener());
+}
+
+function subscribeToDismissal(listener: () => void): () => void {
+  dismissListeners.add(listener);
+  return () => {
+    dismissListeners.delete(listener);
+  };
 }
 
 /**
@@ -71,17 +93,17 @@ export function AdSlot({
   className?: string;
 }) {
   const [ad, setAd] = useState<Ad | null>(null);
-  // Only ever set from the Cancel click handler, never from an effect. These
-  // pages are statically prerendered, so sessionStorage may only be read after
-  // mount -- and a session that already cancelled simply never fetches, which
-  // leaves `ad` null and renders nothing without any state update at all.
-  const [dismissed, setDismissed] = useState(false);
+  const dismissed = useSyncExternalStore(
+    subscribeToDismissal,
+    getDismissed,
+    getServerDismissed,
+  );
   const isMobile = useIsMobile();
 
   useEffect(() => {
-    if (adsCancelled()) return;
+    if (getDismissed()) return;
     let stale = false;
-    const session = adSessionId();
+    const session = pageViewId();
     fetch(`${API_URL}/api/ads?slot=${slot}&session=${encodeURIComponent(session)}`)
       .then((r) => (r.ok ? r.json() : []))
       .then((ads: Ad[]) => {
@@ -97,16 +119,16 @@ export function AdSlot({
   }, [slot]);
 
   const cancelAds = () => {
-    const session = adSessionId();
-    sessionStorage.setItem(ADS_CANCELLED_KEY, "1");
-    setDismissed(true);
-    // Server-side record too, so the cancellation survives a reload within this
-    // session even if the local flag is lost. Failure is fine: the ad is already
-    // hidden and the next visit gets a fresh session anyway.
+    dismissAds();
+    // Tell the backend too, keyed on this page-load token: any slot that mounts
+    // later in the same view is then filtered server-side, even if the local
+    // flag were lost. The token is never persisted, so a reload presents an
+    // unknown one and the ad comes back on its own. Failure is harmless -- the
+    // slots are already hidden.
     fetch(`${API_URL}/api/ads/dismiss`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ session }),
+      body: JSON.stringify({ session: pageViewId() }),
     }).catch(() => {});
   };
 

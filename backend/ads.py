@@ -4,8 +4,8 @@ Gracefully disabled when SUPABASE_URL is not configured:
   - GET /api/ads returns [] (frontend renders nothing)
   - admin routes return 503
 
-Visitors can also cancel ads for the current browser session. That state is
-deliberately ephemeral and process-local -- see the session-cancel section.
+Visitors can cancel ads for the current page load. That state is deliberately
+ephemeral and process-local -- see the page-load-scoped cancellation section.
 """
 import os
 import time
@@ -48,21 +48,26 @@ def _require_configured():
     return sb
 
 
-# ------------------------------------------- session-scoped cancellation
+# ---------------------------------------- page-load-scoped cancellation
 
-# Cancellation is deliberately ephemeral. The client mints a random id and keeps
-# it in sessionStorage, so closing the tab mints a fresh id and the ads return on
-# the next visit -- which is exactly the product rule ("you just have to cancel
-# on every visit"). Nothing here is permanent, and nothing here is tied to IP or
-# to a login, because both would leak the cancellation into later visits.
+# Cancellation lasts exactly one page load. The client mints a token, keeps it
+# in module scope and never writes it anywhere, so reloading presents a token
+# this store has never seen and the ads come straight back -- which is the
+# product rule ("the ad should come back when the user reloads"). Nothing here
+# is tied to IP or to a login, because either would leak the cancellation into
+# later page loads.
 #
-# Held in process memory rather than Supabase: this is session state, not
+# _DISMISS_TTL is memory hygiene, not the product rule: the reset on reload
+# comes from the client minting a fresh token, so a record that outlives its
+# page view is simply unreachable until it prunes.
+#
+# Held in process memory rather than Supabase: this is per-page-view state, not
 # catalogue data, so it should evaporate on restart and must never accumulate
 # rows. Render's free tier is single-instance, so a dict is the right store here.
 
-_DISMISS_TTL = 12 * 60 * 60  # seconds; far longer than any realistic tab lifetime
+_DISMISS_TTL = 12 * 60 * 60  # seconds; purely how long an orphaned record lingers
 _DISMISS_MAX = 10_000        # hard cap so an unauthenticated flood cannot grow memory
-_dismissed: dict[str, float] = {}  # session id -> expiry (epoch seconds)
+_dismissed: dict[str, float] = {}  # page-load token -> expiry (epoch seconds)
 
 
 def _prune_dismissals(now: float) -> None:
@@ -78,7 +83,7 @@ def _prune_dismissals(now: float) -> None:
 
 
 def _session_id(raw: str | None) -> str | None:
-    """Normalise a client-supplied session id; None when there is no usable one."""
+    """Normalise a client-supplied page-load token; None when unusable."""
     if not raw:
         return None
     sid = raw.strip()[:64]
@@ -86,7 +91,7 @@ def _session_id(raw: str | None) -> str | None:
 
 
 def _is_dismissed(session: str) -> bool:
-    """True while the session's cancellation is still live."""
+    """True while this page load's cancellation is still live."""
     now = time.time()
     exp = _dismissed.get(session)
     if exp is None:
@@ -138,8 +143,8 @@ async def get_ads(slot: str | None = None, session: str | None = None):
     """Active ads for a slot (or all).
 
     Returns [] when the system is disabled, when the slot is unknown, or when
-    this visitor cancelled ads for the current session -- so the cancellation
-    is honoured server-side too, not only by the button hiding the slot.
+    this page load cancelled ads -- so the cancellation is honoured
+    server-side too, not only by the button hiding the slot.
     """
     sid = _session_id(session)
     if sid and _is_dismissed(sid):
@@ -158,14 +163,15 @@ async def get_ads(slot: str | None = None, session: str | None = None):
 
 @router.post("/api/ads/dismiss")
 async def dismiss_ads(body: DismissRequest):
-    """Cancel ads for the remainder of this browser session.
+    """Cancel ads for the remainder of this page load.
 
-    Only the session id is recorded, so the cancellation dies with the tab that
-    asked for it; a later visit mints a new id and sees ads again.
+    Only the page-load token is recorded, and the client never persists it, so
+    a reload mints a token this store has never seen and the ads return. The
+    TTL below only bounds how long an orphaned record lingers in memory.
     """
     sid = _session_id(body.session)
     if not sid:
-        raise HTTPException(status_code=400, detail="A session id is required.")
+        raise HTTPException(status_code=400, detail="A page-load token is required.")
     now = time.time()
     _prune_dismissals(now)
     _dismissed[sid] = now + _DISMISS_TTL
