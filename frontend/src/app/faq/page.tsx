@@ -26,7 +26,7 @@ const FAQS = [
   },
   {
     q: "Does it work with Instagram?",
-    a: "Yes. Paste an Instagram Reel or video post link in the same box and Tickless detects it automatically. Public posts only. Photo carousels work too, and you can save each image or use Download all.",
+    a: "Yes. Paste an Instagram Reel or video post link in the same box and Tickless detects it automatically. Public posts only. Photo carousels work too, and you can save each image or hit Select all to take the whole set.",
   },
   {
     q: "Can I download the audio only?",
@@ -42,13 +42,27 @@ const FAQS = [
   },
   {
     q: "Can I download photo slideshows?",
-    a: "Yes. Paste a TikTok or Instagram photo post link and every image shows up as its own item. Save one at a time or hit Download all to get the whole set.",
+    a: "Yes. Paste a TikTok or Instagram photo post link and every image shows up as its own item. Save one at a time, or hit Select all to stage every image and then Download to get the whole set.",
   },
   {
     q: "Is this legal?",
     a: "Tickless is a tool. Download content you own or have permission to use, and respect the rights of creators. See the Copyright page for details.",
   },
 ];
+
+// FAQPage structured data. Google requires it to mirror the visible Q&A
+// exactly, so it is derived from the same FAQS constant the <details> list
+// renders from instead of being kept in sync by hand. The "<" escape is the
+// documented way to stop a value containing "</script>" from closing the tag.
+const FAQ_PAGE_JSON_LD = {
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  mainEntity: FAQS.map((f) => ({
+    "@type": "Question",
+    name: f.q,
+    acceptedAnswer: { "@type": "Answer", text: f.a },
+  })),
+};
 
 export default function FaqPage() {
   return (
@@ -68,6 +82,12 @@ export default function FaqPage() {
             </details>
           ))}
         </div>
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify(FAQ_PAGE_JSON_LD).replace(/</g, "\\u003c"),
+          }}
+        />
       </main>
       <Footer />
     </>

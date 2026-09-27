@@ -1,0 +1,19 @@
+# Tickless
+
+> Tickless is a free web tool that saves TikTok and Instagram videos without the watermark. Paste a link, get the clean file. It also saves photo posts as individual images and trims any video into clips.
+
+No account, no app, no sign-up. Audio-only MP3 downloads are supported. Tickless hosts and stores nothing: the file goes from the source platform straight to your device.
+
+## Pages
+
+- [Home](https://tickless.vercel.app/): The downloader. One input box, platform detected automatically.
+- [Clip](https://tickless.vercel.app/clip): Paste a link or upload a file, mark segments, export each as a clip or as audio.
+- [FAQ](https://tickless.vercel.app/faq): Supported links, privacy, speed, and legality.
+- [About](https://tickless.vercel.app/about): What Tickless is and who builds it.
+- [Copyright](https://tickless.vercel.app/copyright): How Tickless treats rights holders and creator content.
+
+## Optional
+
+- [Terms of Use](https://tickless.vercel.app/terms): The agreement for using the service.
+- [Privacy Policy](https://tickless.vercel.app/privacy): What is and is not collected.
+- [DMCA](https://tickless.vercel.app/dmca): Takedown requests and counter notices.

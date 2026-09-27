@@ -66,7 +66,7 @@ preferences.
 ### Hero
 - **Eyebrow:** Free TikTok & Instagram downloader
 - **Headline:** Save any TikTok or Instagram video without the watermark.
-- **Subhead:** Paste the link, pick your quality, and the clean video lands on your device in seconds. No app to install, no account to make.
+- **Subhead:** Paste the link and the clean video lands on your device in seconds. No app to install, no account to make.
 - **Input placeholder:** Paste your TikTok or Instagram link
 - **Input aria-label:** TikTok or Instagram link
 - **Primary button:** Download
@@ -105,7 +105,7 @@ renders `detail` verbatim, so these strings are the copy:
 ### How it works (3 steps)
 1. **Copy the link.** In TikTok or Instagram, tap Share, then Copy link.
 2. **Paste it here.** Drop the link in the box above and hit Download.
-3. **Save the clean file.** Pick HD, standard, or audio, and it saves straight to your device.
+3. **Save the clean file.** It lands straight on your device. Take the video, or grab just the audio as an MP3.
 
 ### Why Tickless (features, real copy, no filler)
 - **No watermark.** You get the same clean file TikTok serves inside its own app, not a re-recorded copy.
@@ -140,7 +140,7 @@ Q: What links are supported?
 A: TikTok links (tiktok.com/@user/video/123, short links like vm.tiktok.com/xxxx) and Instagram links (instagram.com/reel/xxxx, instagram.com/p/xxxx). Links copied straight from either app's Share menu work.
 
 Q: Does it work with Instagram?
-A: Yes. Paste an Instagram Reel or video post link in the same box and Tickless detects it automatically. Public posts only. Photo carousels work too, and you can save each image or hit Select all and then Download (N) to take the whole set.
+A: Yes. Paste an Instagram Reel or video post link in the same box and Tickless detects it automatically. Public posts only. Photo carousels work too, and you can save each image or hit Select all to take the whole set.
 
 Q: Can I download the audio only?
 A: Yes. When a video is ready you can choose to save just the audio as an MP3.
@@ -152,7 +152,7 @@ Q: Why is the first download sometimes slow?
 A: On the free server plan the backend sleeps after a quiet period and takes a few seconds to wake up. After that first request it is fast.
 
 Q: Can I download photo slideshows?
-A: Yes. Paste a TikTok or Instagram photo post link and every image shows up as its own item. Save one at a time, or hit Select all and then Download (N) to get the whole set.
+A: Yes. Paste a TikTok or Instagram photo post link and every image shows up as its own item. Save one at a time, or hit Select all to stage every image and then Download to get the whole set.
 
 Q: Is this legal?
 A: Tickless is a tool. Download content you own or have permission to use, and respect the rights of creators. See the Copyright page for details.
@@ -274,8 +274,8 @@ authoritative. Terms carries its own "Last updated: 1 August 2026" stamp.
 
 **2026-09-27 — first reconciliation since the document was written on
 2026-07-27.** A full read of the frontend against this document found the
-following. Corrected copy above; entries marked *site pending* are places where
-the site still needs a code change.
+following. Corrected copy above; the two copy bugs this pass exposed were fixed
+in the site the same day, and the one item still outstanding is at the end.
 
 Corrected here because the site had already moved on:
 - Instagram added everywhere: title, meta, OG, hero eyebrow and headline, input placeholder and aria-label, microtrust line, How-it-works step 1, closing band, About paragraph 3, footer line and non-affiliation line, FAQ.
@@ -288,15 +288,21 @@ Corrected here because the site had already moved on:
 - Added sections for the Clip page, the PWA prompt, the consent banner and ad-slot strings, none of which existed when this was written.
 - Removed the three toast strings, which were never built.
 
-*Site pending* (copy here is the target, the code still says otherwise):
-- Two FAQ answers on the live site still say "use **Download all**" and "hit
-  **Download all**". That button was replaced by **Select all** plus
-  **Download (N)**. Corrected above; `frontend/src/app/faq/page.tsx` needs the
-  same edit.
-- The hero subhead ("pick your quality") and How-it-works step 3 ("Pick HD,
-  standard, or audio") both promise a quality selector that does not exist.
-  Left verbatim above because that is what the site renders; either the
-  selector ships or this copy changes.
+Fixed in the site on 2026-09-27, the same day as this pass:
+- The two FAQ answers that said "use **Download all**" and "hit **Download
+  all**" now say "hit **Select all**" and "hit **Select all** to stage every
+  image and then **Download**". There is no "Download all" button and there
+  has not been since multi-select landed.
+- The hero subhead and How-it-works step 3 no longer promise a quality
+  picker. Neither string mentions quality now, so this document and the site
+  agree again. A real quality selector is still an open v2 feature; see
+  section 6 of `product-plan.md`.
+- Structured data was added the same day: FAQPage, HowTo and WebApplication
+  JSON-LD, generated from the same `FAQS` and `STEPS` constants the visible
+  copy renders from, so the schema and the page cannot drift apart. There is
+  deliberately no AggregateRating.
+
+Still open:
 - Page-level meta descriptions for FAQ, About, Terms, Privacy, Copyright, DMCA
   and Clip live only in the page files. They are documented per section here
   but only where captured.

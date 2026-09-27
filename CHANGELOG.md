@@ -47,6 +47,32 @@ lives under [Unreleased].
   accumulate rows for an unauthenticated endpoint. The **Visit** label keeps its
   old behaviour — it sits in a `pointer-events-none` wrapper so clicks still
   fall through to the ad link, and only **Cancel** opts back in.
+- **Structured data (JSON-LD).** `FAQPage` on `/faq`, plus `HowTo` and
+  `WebApplication` on `/`. All three are generated from the same `FAQS` and
+  `STEPS` constants the visible copy renders from, so the schema and the page
+  cannot drift apart, and `<` is escaped on the way out so a value can never
+  close its own `<script>` tag. Deliberately no `AggregateRating`: there are no
+  real ratings to report, and asserting them would be a manual action under
+  Google's search spam policies. Before this the site had no structured data at
+  all, so none of its FAQ or how-to content was eligible for rich results or
+  for the answer engines.
+- **`llms.txt`, served at `/llms.txt`.** A short plain-text summary of what
+  Tickless is plus a link to every page, written for the crawlers that fetch it
+  before they fetch HTML. Speculative upside only, but it costs one static file.
+- **A daily extraction health check** (`.github/workflows/health-extract.yml`)
+  that calls `/api/health/extract` once a day at 08:07 UTC. That endpoint runs a
+  real extraction against a known-good TikTok link and returns 503 with an error
+  code when the extractor is broken. Until now the keep-warm workflow was the
+  only automated probe and it deliberately never touched yt-dlp, so a TikTok
+  signature change could break every download while every liveness check stayed
+  green. It is scheduled inside the 08:00-21:59 UTC keep-warm window so it
+  reuses a boot that is happening anyway and adds no Render instance-hours.
+- **Backend error tracking with Sentry** (`sentry-sdk[fastapi]`). Initialised
+  only when `SENTRY_DSN` is set, with `send_default_pii` off so events carry
+  nothing that would contradict the privacy promise. Without a DSN the SDK is
+  never even imported, so local and CI runs are exactly what they were before.
+  Paste a DSN into the Render dashboard to turn it on. Frontend tracking is not
+  part of this change.
 
 ### Changed
 
@@ -73,10 +99,11 @@ lives under [Unreleased].
   was written: Instagram, Clip, PWA, consent and ad strings added; the quality
   selector, "Download another" and the slideshow teaser removed as never
   shipped; error copy matched to `ERROR_MESSAGES`; section 10 logs all of it.
-  `growth-strategy.md` gained a "where this stands" block recording that
-  JSON-LD, `llms.txt` and the sitemap's `/clip` and `/dmca` entries are still
-  outstanding; `legal-posture.md` was reviewed and its health-check claim
-  corrected.
+  `growth-strategy.md` gained a "where this stands" block tracking which SEO
+  items are done and which are left, `legal-posture.md` was reviewed and its
+  health-check claim corrected, and both were revised again once the gaps the
+  block identified (JSON-LD, `llms.txt`, the `/clip` and `/dmca` sitemap
+  entries) were closed the same day.
 - **Clear** is now a text-weight control with a `--danger` hover tint rather
   than a third full-size button, matching the subtle-destructive pattern
   already used in the admin panel. The action row reads as two primary buttons
@@ -111,6 +138,22 @@ lives under [Unreleased].
   two primary controls now live in a fixed two-column grid, which cannot stack
   at any viewport width, with Clear flex-wrapping onto its own line only when
   there is genuinely no room left for it.
+- **The FAQ told users to press a button that no longer exists.** Two answers
+  said "use Download all" and "hit Download all", but that control was replaced
+  by **Select all** plus **Download (N)** when multi-select landed. Both now
+  name the buttons that are actually on screen.
+- **The homepage promised a quality selector that was never built.** The hero
+  subhead said "pick your quality" and How-it-works step 3 said "Pick HD,
+  standard, or audio", while the result card offers exactly one video file plus
+  audio. Both strings now describe what happens. A real quality picker is still
+  an open v2 feature rather than something the copy advertises.
+- **`/clip` and `/dmca` were missing from the sitemap**, so neither page was
+  ever offered to crawlers. The sitemap now lists all eight public routes with
+  per-page priorities and still omits `/admin`.
+- **`robots.txt` named no AI crawler.** It was a single blanket `*` entry, which
+  left the answer-engine bots to an implicit default and would have been
+  silently overridden by any later blanket rule. They now get an explicit
+  allow-list ahead of the catch-all.
 
 ### Removed
 

@@ -69,6 +69,25 @@ ERROR_MESSAGES = {
 }
 
 limiter = Limiter(key_func=get_remote_address)
+
+# Error tracking. Inert unless SENTRY_DSN is set in the Render dashboard, so the
+# service behaves exactly as before when the variable is absent, which is also
+# the local and CI case. send_default_pii stays explicitly off: the privacy page
+# and legal posture both promise we do not identify users, and Sentry's default
+# would otherwise attach cookies and IP-derived data to every event.
+if os.getenv("SENTRY_DSN"):
+    import sentry_sdk
+    from sentry_sdk.integrations.fastapi import FastApiIntegration
+    from sentry_sdk.integrations.starlette import StarletteIntegration
+
+    sentry_sdk.init(
+        dsn=os.getenv("SENTRY_DSN"),
+        integrations=[FastApiIntegration(), StarletteIntegration()],
+        send_default_pii=False,
+        traces_sample_rate=0.0,
+        environment=os.getenv("SENTRY_ENV", "production"),
+    )
+
 app = FastAPI(title="Tickless API", version="1.0.0")
 app.state.limiter = limiter
 

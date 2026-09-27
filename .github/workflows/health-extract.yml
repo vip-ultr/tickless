@@ -1,0 +1,41 @@
+name: health-extract
+
+# The missing half of the monitoring story.
+#
+# keep-tickless-warm pings /api/health and /api/health/cobalt every 10 minutes,
+# which answers "is the process up" and "is the Cobalt sidecar up". Neither one
+# touches yt-dlp, so until this workflow existed NOTHING automated ever checked
+# that the product's core still works: TikTok rotating a signature would break
+# every download and every liveness probe would stay green.
+#
+# This calls /api/health/extract, which runs a real extraction against
+# HEALTHCHECK_URL (a known-good TikTok link) and returns 503 with an error code
+# when extraction is broken. It is a single request per day rather than part of
+# the 10-minute loop because it costs a real yt-dlp run every time.
+#
+# Timing: 08:07 UTC, deliberately INSIDE the 08:00-21:59 UTC keep-warm window, so
+# it reuses a boot that is happening anyway and adds no Render instance-hours to
+# the free-tier budget. Running it in the quiet hours would wake a sleeping
+# service purely for this check.
+
+on:
+  schedule:
+    - cron: "7 8 * * *"
+  workflow_dispatch:
+
+jobs:
+  extract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - name: Run a real extraction
+        run: |
+          # -m 120: the service may still be booting at 08:07, and a cold boot
+          # plus one yt-dlp run can take 30-40s. Hold the connection open.
+          code=$(curl -s -o /tmp/body -m 120 -w '%{http_code}' \
+            https://tickless.onrender.com/api/health/extract)
+          echo "HTTP $code"
+          head -c 500 /tmp/body || true
+          echo
+          echo "::notice::extract health returned $code"
+          test "$code" = "200"

@@ -8,17 +8,26 @@
 > recommendations. Sources cited inline.
 > **Last reviewed:** 2026-09-27
 
-### Where this stands (reviewed 2026-09-27)
+### Where this stands (reviewed 2026-09-27, second pass)
 
 Done:
-- `/robots.txt` exists and disallows `/admin` only. It does **not** yet carry
-  the AI-crawler allow-list from Phase 2 item 1.
-- `/sitemap.xml` exists. It currently lists `/`, `/faq`, `/about`, `/terms`,
-  `/privacy` and `/copyright`, and is **missing `/clip` and `/dmca`**.
-- The FAQ page exists and carries the questions listed in `content.md`, but it
-  has **no FAQPage JSON-LD**, and there is **no HowTo or WebApplication
-  structured data anywhere in the frontend**. Phase 1 items 2, 3 and 4 are all
-  still open.
+- `/robots.txt` disallows `/admin` only and now carries the explicit
+  AI-crawler allow-list from Phase 2 item 1 (added 2026-09-27): GPTBot,
+  OAI-SearchBot, ChatGPT-User, ClaudeBot, Claude-Web, Claude-SearchBot,
+  Claude-User, PerplexityBot, Perplexity-User, Google-Extended and CCBot each
+  get their own `Allow` rule, so a later blanket rule cannot quietly lock them
+  out.
+- `/sitemap.xml` lists `/`, `/clip`, `/faq`, `/about`, `/terms`, `/privacy`,
+  `/copyright` and `/dmca` with per-page priorities. `/clip` and `/dmca` were
+  missing until 2026-09-27, which meant neither page was ever offered to
+  crawlers.
+- Phase 1 items 2, 3 and 4 are done: FAQPage JSON-LD on `/faq`, HowTo and
+  WebApplication on `/`, all generated from the same constants the visible copy
+  renders from. No AggregateRating, per the warning in item 4. **Item 2 is
+  still only half done though** — the schema ships, but the FAQ has 10 Q&A
+  pairs rather than the ~13 the plan calls for, and carries no story, quality,
+  iPhone or Android intent coverage.
+- `llms.txt` is served at `/llms.txt` (Phase 2 item 5).
 - YouTube support exists in the backend but was dropped from frontend copy in
   v0.3.0, so the title pattern in Phase 1 item 1 (which names YouTube) is not
   what the site ships. The live title is
@@ -27,8 +36,12 @@ Done:
 Not started, and still the highest-leverage items:
 - Decision 0, the custom domain. Everything in Phase 1 that depends on
   authority still blocks on it.
-- `llms.txt`, the comparison page, directory/PH/HN seeding, language subpages,
-  the MCP server.
+- Phase 1 item 7: robots.txt does not disallow `?url=` result params yet.
+- Submitting to Bing Webmaster Tools, Google Search Console and IndexNow
+  (Execution order item 3). The markup exists now, but nothing has been
+  submitted anywhere, so nothing is being read yet.
+- The comparison page, directory/PH/HN seeding, language subpages, and the MCP
+  server.
 
 ## The market (verified numbers)
 

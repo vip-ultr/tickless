@@ -286,10 +286,10 @@ kept under each heading so the record of what was intended survives; the
 - Desktop navbar + separate mobile nav/slide-over. *(Shipped as the bottom sheet, decision 8/26.)*
 - All breakpoints verified.
 
-**Phase 4 — Brand + content + legal** — **Status: mostly done; JSON-LD is not.**
+**Phase 4 — Brand + content + legal** — **Status: done (JSON-LD added 2026-09-27).**
 - Logo, favicons, OG image (image tool). *(Styled wordmark plus a generated favicon set; no custom logo glyph, per decision 6.)*
 - About, FAQ, Terms/Privacy/DMCA. *(All done, plus a dedicated `/dmca` page.)*
-- SEO metadata, sitemap, JSON-LD. *(Metadata and sitemap done. **JSON-LD was never implemented** — no FAQPage, HowTo or WebApplication schema exists anywhere in the frontend.)*
+- SEO metadata, sitemap, JSON-LD. *(All three now done. FAQPage on `/faq`, HowTo and WebApplication on `/`, generated from the same constants the visible copy renders from so schema and page cannot drift. No AggregateRating, since there are no real ratings to report.)*
 
 **Phase 5 — Launch** — **Status: done, on free subdomains.**
 - Deploy frontend to Vercel, connect domain. *(Deployed to `tickless.vercel.app`; no custom domain yet.)*
@@ -318,9 +318,9 @@ kept under each heading so the record of what was intended survives; the
 - Terms/Privacy/Copyright pages ship in v1 (copy already locked in content doc).
 
 ### D. Monitoring & health (CRITICAL, locked)
-- **Error tracking:** Sentry free tier on BOTH frontend and backend. Captures the moment yt-dlp breaks. *(Not implemented. Failures surface through the `ExtractionError` mapping in `main.py` and the health endpoints instead.)*
+- **Error tracking:** Sentry free tier on BOTH frontend and backend. Captures the moment yt-dlp breaks. *(Backend wired 2026-09-27: `sentry-sdk[fastapi]` in `requirements.txt`, initialised in `main.py` only when `SENTRY_DSN` is set, with `send_default_pii` off so events carry nothing that would contradict the privacy promise. Without a DSN the SDK is never even imported, so local and CI runs behave exactly as before. Frontend error tracking is still open; it needs `@sentry/nextjs` plus a DSN.)*
 - **Analytics:** Vercel Web Analytics (free, privacy-friendly, no cookie needed) for traffic. Gated behind cookie consent only if it ever uses cookies; Vercel Analytics is cookieless so it can run always. *(Shipped in v1.0.0, plus first-party visit and download counters in Supabase for the admin dashboard.)*
-- **Health monitoring (item 5, locked):** *(What shipped is narrower than the original plan.)* `.github/workflows/keep-tickless-warm.yml` pings `/api/health` and `/api/health/cobalt` every 10 minutes between 08:00 and 21:59 UTC and fails the run if either returns non-200, so an outage reaches the repo owner through GitHub's workflow-failure notification within minutes. It deliberately does **not** run `/api/health/extract`, because that would execute a real TikTok extraction on a timer. `/api/health/extract` does exist and runs the known-good link held in `HEALTHCHECK_URL`, but **nothing calls it on a schedule, so there is no automated test that extraction still works**; the original "ping a known-good link daily and alert" job is still the right thing to build.
+- **Health monitoring (item 5, locked):** *(Now complete, split across two workflows by cost.)* `.github/workflows/keep-tickless-warm.yml` pings `/api/health` and `/api/health/cobalt` every 10 minutes between 08:00 and 21:59 UTC and fails the run if either returns non-200, answering "is the process up" and "is the Cobalt sidecar up" within minutes. It deliberately does not run `/api/health/extract`, because that would execute a real TikTok extraction every ten minutes. `.github/workflows/health-extract.yml` closes that gap: it calls `/api/health/extract` once a day at 08:07 UTC, which runs a real extraction against the known-good link held in `HEALTHCHECK_URL` and returns 503 with an error code when extraction is broken. That is now the only automated test that the product's core still works, and it is what fires when TikTok rotates a signature. It sits inside the keep-warm window on purpose, so it reuses a boot that is happening anyway and adds no Render instance-hours.
 
 ### E. Repo, CI, deploy (item 6, locked)
 - **Monorepo** `tickless/` with `/frontend` and `/backend`. GitHub owner: vip-ultr (SSH already configured).
@@ -382,7 +382,7 @@ Rules: NO pop-ups, NO auto-play sound, NO sticky full-width mobile overlays, max
 - Frontend hosting: **$0** (Vercel free).
 - Backend hosting: **$0** (Render free — redirect-based design keeps us under bandwidth/hours limits).
 - Ad DB + image storage: **$0** (Supabase free tier, persistent).
-- Monitoring: **$0** (Vercel Analytics free. Sentry was planned but is not wired up; the keep-warm workflow and health endpoints are the monitoring today.)
+- Monitoring: **$0** (Vercel Analytics free, Sentry free tier. Sentry is wired into the backend and activates the moment `SENTRY_DSN` is set; frontend Sentry is still open.)
 - Domain: **optional** — only real potential cost (~$10/yr). Can launch on free `*.vercel.app` + `*.onrender.com` subdomains at $0.
 
 **Verdict: buildable and runnable at $0** for personal/small scale. Only proxies/bandwidth cost money later at viral scale, deferred by design.
@@ -404,7 +404,7 @@ Rules: NO pop-ups, NO auto-play sound, NO sticky full-width mobile overlays, max
 12. **Security:** CORS locked to our domain + shared `X-Tickless-Key` header; input hardening (section 8.5-A).
 13. **Rate limit:** 10 req/min/IP via slowapi (8.5-B).
 14. **Legal entity:** Optivis Labs; DMCA contact email at launch (8.5-C).
-15. **Monitoring:** Sentry (FE+BE) + Vercel Analytics + daily health-check cron (8.5-D). *(Vercel Analytics shipped. Sentry and the extraction health-check cron did not — see 8.5-D.)*
+15. **Monitoring:** Sentry (FE+BE) + Vercel Analytics + daily health-check cron (8.5-D). *(Vercel Analytics shipped. The daily extraction cron and backend Sentry shipped 2026-09-27; frontend Sentry is the remaining piece.)*
 16. **Repo/CI:** monorepo `tickless/`, main auto-deploys, PR previews (8.5-E).
 17. **Testing:** pytest backend + manual responsive QA + next/eslint build verify (8.5-F).
 18. **A11y/perf:** WCAG AA, reduced-motion, focus trap, Lighthouse 90+ (8.5-G).

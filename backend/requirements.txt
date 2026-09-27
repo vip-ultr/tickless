@@ -15,3 +15,6 @@ httpx==0.28.1
 python-multipart==0.0.32
 supabase==2.31.0
 pyjwt==2.13.0
+# Error tracking (see the SENTRY_DSN block in main.py). Inert until a DSN is
+# provided, so nothing changes until one is set in the Render dashboard.
+sentry-sdk[fastapi]==2.70.0

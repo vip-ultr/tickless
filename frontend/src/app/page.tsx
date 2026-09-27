@@ -8,7 +8,7 @@ import { ShieldOff, Sparkles, MonitorSmartphone, EyeOff, BadgeCheck, AudioLines 
 const STEPS = [
   { n: "1", title: "Copy the link", body: "In TikTok or Instagram, tap Share, then Copy link." },
   { n: "2", title: "Paste it here", body: "Drop the link in the box above and hit Download." },
-  { n: "3", title: "Save the clean file", body: "Pick HD, standard, or audio, and it saves straight to your device." },
+  { n: "3", title: "Save the clean file", body: "It lands straight on your device. Take the video, or grab just the audio as an MP3." },
 ];
 
 const FEATURES = [
@@ -19,6 +19,40 @@ const FEATURES = [
   { icon: BadgeCheck, title: "Actually free", body: "No trial, no card, no hidden export fee. Ads keep the lights on later, that is it." },
   { icon: AudioLines, title: "Audio too", body: "Grab just the sound as an MP3 when that is all you need." },
 ];
+
+// Structured data for the home page. HowTo mirrors the visible "How it works"
+// steps and WebApplication describes the tool itself. Deliberately no
+// AggregateRating: there are no ratings to report, and inventing them would be
+// a manual action under the Google Search spam policies. The "<" escape stops
+// a value containing "</script>" from closing the tag.
+const HOW_TO_JSON_LD = {
+  "@context": "https://schema.org",
+  "@type": "HowTo",
+  name: "How to download a TikTok or Instagram video without a watermark",
+  description:
+    "Paste a TikTok or Instagram link into Tickless and save the clean file, or just the audio, straight to your device.",
+  totalTime: "PT1M",
+  step: STEPS.map((s, i) => ({
+    "@type": "HowToStep",
+    position: i + 1,
+    name: s.title,
+    text: s.body,
+  })),
+};
+
+const WEB_APP_JSON_LD = {
+  "@context": "https://schema.org",
+  "@type": "WebApplication",
+  name: "Tickless",
+  url: "https://tickless.vercel.app",
+  applicationCategory: "MultimediaApplication",
+  operatingSystem: "Any",
+  description:
+    "Free TikTok and Instagram video downloader that saves files without a watermark, plus photo posts and audio-only MP3s. No account and no app.",
+  inLanguage: "en",
+  offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
+  publisher: { "@type": "Organization", name: "Optivis Labs" },
+};
 
 export default function Home() {
   return (
@@ -35,7 +69,7 @@ export default function Home() {
             Save any TikTok or Instagram video without the <span className="tx-accent">watermark</span>.
           </h1>
           <p className="mt-5 max-w-xl text-base tx-muted md:text-lg">
-            Paste the link, pick your quality, and the clean video lands on your device in seconds. No app to install, no account to make.
+            Paste the link and the clean video lands on your device in seconds. No app to install, no account to make.
           </p>
           <div className="mt-10">
             <Downloader />
@@ -85,6 +119,18 @@ export default function Home() {
           </h2>
           <p className="mt-4 tx-muted">Paste a link above and see for yourself.</p>
         </section>
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify(HOW_TO_JSON_LD).replace(/</g, "\\u003c"),
+          }}
+        />
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify(WEB_APP_JSON_LD).replace(/</g, "\\u003c"),
+          }}
+        />
       </main>
       <Footer />
     </>

@@ -36,12 +36,14 @@ same work is our legal-risk control:
   could disappear or be served with legal strings attached.
 - A PO-token provider defeats YouTube's bot wall from a datacenter IP without
   account cookies.
-- A keep-warm workflow pings `/api/health` and `/api/health/cobalt` every 10
-  minutes across the daily 08:00-21:59 UTC window and fails the run if either
-  drops, so an outage surfaces to the repo owner in minutes rather than through
-  users. `/api/health/extract` runs a real extraction and is deliberately kept
-  out of that loop, so extraction breakage itself is still found by a human or
-  by a user, not automatically.
+- Two workflows cover breakage instead of one. A keep-warm workflow pings
+  `/api/health` and `/api/health/cobalt` every 10 minutes across the daily
+  08:00-21:59 UTC window and fails the run if either drops, so an outage
+  surfaces to the repo owner in minutes rather than through users. A second
+  workflow runs `/api/health/extract` once a day, which executes a real
+  extraction against a known-good link, so a signature change that would break
+  every download is caught that morning instead of by a user. It sits inside
+  the same window so it costs no extra instance-hours.
 - Per-device ad creatives and graceful error handling keep the service stable at
   scale instead of returning 500s.
 
