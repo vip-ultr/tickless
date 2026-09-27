@@ -61,6 +61,21 @@ def _repin_local_extractor():
         sys.modules["extractor"] = _LOCAL_EXTRACTOR
 
 
+@pytest.fixture(autouse=True)
+def _reset_ad_cache():
+    """Start each test with an empty ad catalogue cache.
+
+    Active ads are cached for a TTL in production, so without this a test
+    could be handed rows (or a stale `[]`) fetched by an earlier test against
+    a fake Supabase client it never saw.
+    """
+    import ads as ads_mod
+
+    ads_mod._invalidate_ads()
+    yield
+    ads_mod._invalidate_ads()
+
+
 @pytest.fixture
 def client():
     """FastAPI TestClient with no API key required (local-dev style)."""

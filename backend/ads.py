@@ -13,8 +13,18 @@ import uuid
 
 import jwt
 from dotenv import load_dotenv
-from fastapi import APIRouter, Depends, File, Form, HTTPException, Header, UploadFile
+from fastapi import (
+    APIRouter,
+    Depends,
+    File,
+    Form,
+    Header,
+    HTTPException,
+    Response,
+    UploadFile,
+)
 from pydantic import BaseModel
+from starlette.concurrency import run_in_threadpool
 
 load_dotenv()
 
@@ -138,27 +148,74 @@ async def admin_login(username: str = Form(...), password: str = Form(...)):
 
 # ---------------------------------------------------------------- public
 
+# Active ads change only when an admin publishes, unpublishes or deletes one,
+# but they are read on every page view and once per page by the frontend. The
+# Supabase read is not the expensive part -- measured end to end it is only
+# ~60-140ms more than a no-op health check on the same connection -- but it was
+# being paid on every request AND on the event loop, because supabase-py is
+# synchronous while these handlers are async. The cache removes the repeat cost
+# and run_in_threadpool removes the blocking (which is what made the whole
+# instance feel intermittently slow: one ad read stalled every other request).
+# The TTL is only a safety net, since admin CRUD invalidates immediately.
+_ADS_TTL = 60.0
+_ads_cache: tuple[float, list] | None = None  # (expiry epoch, rows)
+
+
+def _invalidate_ads() -> None:
+    """Drop the cached catalogue so a publish takes effect immediately."""
+    global _ads_cache
+    _ads_cache = None
+
+
+def _read_active_ads() -> list:
+    """Synchronous Supabase read.
+
+    Never call this directly -- go through `_active_ads`, which threads it, or
+    it stalls every other request for its duration.
+    """
+    sb = _sb()
+    if not sb:
+        return []
+    return sb.table("ads").select("*").eq("is_active", True).execute().data or []
+
+
+async def _active_ads() -> list:
+    """Active ads across all slots, served from memory while the TTL holds."""
+    global _ads_cache
+    if _ads_cache is not None and _ads_cache[0] > time.time():
+        return _ads_cache[1]
+    rows = await run_in_threadpool(_read_active_ads)
+    _ads_cache = (time.time() + _ADS_TTL, rows)
+    return rows
+
+
 @router.get("/api/ads")
-async def get_ads(slot: str | None = None, session: str | None = None):
+async def get_ads(
+    response: Response, slot: str | None = None, session: str | None = None
+):
     """Active ads for a slot (or all).
 
     Returns [] when the system is disabled, when the slot is unknown, or when
     this page load cancelled ads -- so the cancellation is honoured
     server-side too, not only by the button hiding the slot.
+
+    One cached read covers every slot; the filter happens here rather than in
+    the query so a page asking for two slots can be served by one round trip
+    (the frontend now asks once and splits the result itself).
     """
     sid = _session_id(session)
     if sid and _is_dismissed(sid):
         return []
-    sb = _sb()
-    if not sb:
+    if slot and slot not in VALID_SLOTS:
         return []
-    q = sb.table("ads").select("*").eq("is_active", True)
-    if slot:
-        if slot not in VALID_SLOTS:
-            return []
-        q = q.eq("slot", slot)
-    rows = q.execute().data or []
-    return rows
+    started = time.perf_counter()
+    rows = await _active_ads()
+    # Surfaced so "why are ads slow" is answerable from DevTools' Timing tab
+    # rather than by re-measuring from a laptop with a bad connection.
+    response.headers["Server-Timing"] = f"ads;dur={(time.perf_counter() - started) * 1000:.1f}"
+    if not slot:
+        return rows
+    return [r for r in rows if r.get("slot") == slot]
 
 
 @router.post("/api/ads/dismiss")
@@ -182,7 +239,13 @@ async def dismiss_ads(body: DismissRequest):
 async def record_impression(ad_id: str):
     sb = _sb()
     if sb:
-        sb.rpc("increment_ad_counter", {"ad_id": ad_id, "counter": "impressions"}).execute()
+        # Threaded: this fires the instant an ad renders, i.e. while the page
+        # is still loading, and supabase-py would otherwise block the loop.
+        await run_in_threadpool(
+            lambda: sb.rpc(
+                "increment_ad_counter", {"ad_id": ad_id, "counter": "impressions"}
+            ).execute()
+        )
     return {"ok": True}
 
 
@@ -190,7 +253,11 @@ async def record_impression(ad_id: str):
 async def record_click(ad_id: str):
     sb = _sb()
     if sb:
-        sb.rpc("increment_ad_counter", {"ad_id": ad_id, "counter": "clicks"}).execute()
+        await run_in_threadpool(
+            lambda: sb.rpc(
+                "increment_ad_counter", {"ad_id": ad_id, "counter": "clicks"}
+            ).execute()
+        )
     return {"ok": True}
 
 
@@ -235,6 +302,7 @@ async def create_ad(
         "ends_at": ends_at or None,
     }
     res = sb.table("ads").insert(row).execute()
+    _invalidate_ads()
     return res.data[0]
 
 
@@ -259,6 +327,7 @@ async def update_ad(ad_id: str, is_active: bool = Form(...)):
     res = sb.table("ads").update({"is_active": is_active}).eq("id", ad_id).execute()
     if not res.data:
         raise HTTPException(status_code=404, detail="Ad not found.")
+    _invalidate_ads()
     return res.data[0]
 
 
@@ -266,4 +335,5 @@ async def update_ad(ad_id: str, is_active: bool = Form(...)):
 async def delete_ad(ad_id: str):
     sb = _require_configured()
     sb.table("ads").delete().eq("id", ad_id).execute()
+    _invalidate_ads()
     return {"ok": True}

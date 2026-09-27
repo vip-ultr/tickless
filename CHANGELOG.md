@@ -202,6 +202,29 @@ lives under [Unreleased].
   with the same 400 a TikTok photo post already returns, instead of letting
   ffmpeg fail into an opaque 502. TikTok and YouTube keep the yt-dlp path that
   already worked, which `test_clip_tiktok_still_uses_ytdlp` now pins.
+- **Ads were slow to appear, and an ad request could stall the entire
+  backend.** Four separate costs stacked up. A page renders two or three slots
+  and each made its own `/api/ads` round trip. None of them could start until
+  React had hydrated. Nothing warmed the API origin, so the first call paid DNS
+  + TCP + TLS behind everything else. Worst, the backend's Supabase read ran
+  *on the event loop*: `supabase-py` returns a synchronous `httpx` client, so an
+  `async def` handler calling `.execute()` blocked every other request for as
+  long as the read took — which is the "sometimes", because an ad fetch landing
+  during an extraction made both of them wait. The frontend now issues **one**
+  request per page (the endpoint has always accepted no `slot`, so the split
+  happens client-side), starts it when the chunk evaluates rather than after
+  hydration, and the root layout pre-connects to the API origin so connection
+  setup overlaps the HTML and JS download. The backend holds the active
+  catalogue in a 60-second memory cache — dropped by every admin mutation, so
+  publishing still takes effect immediately — and runs its read in a thread
+  pool: measured, a 4.9s cache miss no longer delays `/api/health`, which
+  answered in 13ms alongside it, where it previously would have queued behind
+  it. Cache hits are 0.0ms server-side. `Server-Timing: ads;dur=…` now reports
+  the read's cost (and is CORS-exposed), so the next "why are ads slow" is
+  answerable from DevTools instead of by re-measuring from a laptop. The two
+  halves deploy independently — the no-`slot` form of the endpoint predates
+  this change. `product-plan.md`'s ad-delivery paragraph now describes the
+  same flow.
 
 ### Removed
 

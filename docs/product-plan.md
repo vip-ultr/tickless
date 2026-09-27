@@ -358,7 +358,7 @@ Revenue model: **house ads now** (self-served via admin), designed so Google AdS
 3. **Result-area sidebar/below** — a single unit near the result card (below on mobile, beside on wide desktop) — high attention without blocking the download.
 Rules: NO pop-ups, NO auto-play sound, NO sticky full-width mobile overlays, max 3 units per page, every unit reserves fixed height (no layout shift), each labeled "Ad". Ads never cover the input or download buttons.
 
-**Ad delivery:** frontend fetches active ads from `GET /api/ads?slot=<slot>` at load; renders image + click-through link; records an impression. Empty slot renders nothing (no broken boxes).
+**Ad delivery:** the frontend makes **one** `GET /api/ads?session=<page-load token>` per page, started when the AdSlot chunk evaluates rather than after React hydrates, and splits that response across every slot itself; a `<link rel="preconnect">` to the API origin in the root layout lets DNS/TCP/TLS overlap the HTML and JS download. The `session` token is still sent, so the backend honours a cancellation server-side. On the backend the active catalogue is held in a 60-second memory cache (dropped by every admin mutation) and its Supabase read runs in a thread pool — that read is synchronous, and running it on the event loop meant one slot's ad fetch could stall every other request for its duration. `Server-Timing: ads;dur=…` reports the server-side cost. Each slot renders image + click-through link; records an impression. Empty slot renders nothing (no broken boxes).
 
 ### K. Admin panel for ads (item, locked)
 - **Route:** `/admin` on the frontend, protected by login.

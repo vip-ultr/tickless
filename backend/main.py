@@ -105,8 +105,10 @@ app.add_middleware(
     # never sees the filename this API computes and falls back to an uncapped,
     # extensionless one (photos and videos then both land as an unknown "file").
     # The single-item button is unaffected because a browser navigation is not
-    # subject to CORS.
-    expose_headers=["Content-Disposition"],
+    # subject to CORS. Server-Timing is listed for the same reason: it carries
+    # the ad read's server-side duration, which is otherwise unreadable from
+    # the page and turns "why are ads slow" into a guess.
+    expose_headers=["Content-Disposition", "Server-Timing"],
 )
 
 app.include_router(ads_router)

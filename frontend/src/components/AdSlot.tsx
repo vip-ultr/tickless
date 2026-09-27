@@ -66,6 +66,41 @@ function subscribeToDismissal(listener: () => void): () => void {
   };
 }
 
+// ─── one request per page load ───────────────────────────────────────────────
+// A page renders two or three slots, and each used to make its own round trip
+// to the backend. The endpoint already returns every active ad when no slot is
+// named, so it is called once here and split by slot in the effect below.
+//
+// It also starts at module evaluation instead of in useEffect: an effect only
+// runs after React has hydrated, and that wait was the single largest gap
+// between the page becoming visible and an ad appearing. Because the module
+// survives client-side navigation, moving between pages reuses the same
+// promise and costs no further requests.
+let adsForPage: Promise<Ad[]> | null = null;
+
+function loadAds(): Promise<Ad[]> {
+  if (!adsForPage) {
+    const session = encodeURIComponent(pageViewId());
+    adsForPage = fetch(`${API_URL}/api/ads?session=${session}`)
+      .then((r) => (r.ok ? r.json() : []))
+      .then((ads) => (Array.isArray(ads) ? (ads as Ad[]) : []))
+      .catch(() => {
+        // Clear rather than pin the failure for the whole session: a cold
+        // Render instance behind this request is the usual cause, and the next
+        // mount should get another chance at it.
+        adsForPage = null;
+        return [] as Ad[];
+      });
+  }
+  return adsForPage;
+}
+
+// Kicked off as soon as this chunk evaluates. Guarded because Next also
+// evaluates the module while prerendering, where there is no page view to
+// load ads for -- letting that run would fire a request at the API during
+// every build.
+if (typeof window !== "undefined") void loadAds();
+
 /**
  * House ad container. Renders NOTHING when no active ad exists for the slot
  * (no broken boxes, no reserved empty space). The optional className (e.g.
@@ -103,16 +138,13 @@ export function AdSlot({
   useEffect(() => {
     if (getDismissed()) return;
     let stale = false;
-    const session = pageViewId();
-    fetch(`${API_URL}/api/ads?slot=${slot}&session=${encodeURIComponent(session)}`)
-      .then((r) => (r.ok ? r.json() : []))
-      .then((ads: Ad[]) => {
-        if (stale || !ads.length) return;
-        const pick = ads[Math.floor(Math.random() * ads.length)];
-        setAd(pick);
-        fetch(`${API_URL}/api/ads/${pick.id}/impression`, { method: "POST" }).catch(() => {});
-      })
-      .catch(() => {});
+    loadAds().then((ads) => {
+      const mine = ads.filter((a) => a.slot === slot);
+      if (stale || mine.length === 0) return;
+      const pick = mine[Math.floor(Math.random() * mine.length)];
+      setAd(pick);
+      fetch(`${API_URL}/api/ads/${pick.id}/impression`, { method: "POST" }).catch(() => {});
+    });
     return () => {
       stale = true;
     };
@@ -165,10 +197,15 @@ export function AdSlot({
           }}
         >
           {/* Pick the device-specific creative; fall back to desktop when a
-              mobile one wasn't uploaded (or vice-versa). */}
+              mobile one wasn't uploaded (or vice-versa). fetchPriority keeps
+              the creative ahead of anything else the page asks for once it is
+              known, and async decoding keeps it off the main thread while the
+              page is still settling. */}
           <img
             src={(isMobile && ad.image_url_mobile) || ad.image_url}
             alt="Advertisement"
+            decoding="async"
+            fetchPriority="high"
             className="h-full w-full rounded-2xl border border-[var(--glass-border)] object-cover"
           />
         </a>

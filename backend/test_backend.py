@@ -239,6 +239,69 @@ def test_ad_cancel_is_scoped_to_the_page_load(monkeypatch):
     ads_mod._dismissed.clear()
 
 
+def test_ad_catalogue_is_cached_until_an_admin_changes_it(monkeypatch):
+    """The active-ad list is read from Supabase once, not once per request.
+
+    A page renders two or three slots and this endpoint sits on every view, so
+    re-running the query each time is pure cost -- and until now it was also
+    being run on the event loop, where it stalled every other request for its
+    duration. Admin mutations must still bust it immediately, or publishing an
+    ad would take a minute to appear.
+    """
+    import ads as ads_mod
+    from starlette.testclient import TestClient
+
+    from main import app
+
+    hits = {"n": 0}
+
+    class _Q:
+        def eq(self, *_args, **_kw):
+            return self
+
+        def execute(self):
+            hits["n"] += 1
+
+            class _Result:
+                data = [{"id": "ad-1", "slot": "leaderboard"}]
+
+            return _Result()
+
+    class _Table:
+        def select(self, *_args, **_kw):
+            return _Q()
+
+    class _FakeSupabase:
+        def table(self, _name):
+            return _Table()
+
+    monkeypatch.setattr(ads_mod, "_sb", lambda: _FakeSupabase())
+    ads_mod._dismissed.clear()
+
+    with TestClient(app) as client:
+        # The lifespan must not have quietly warmed (or bypassed) the cache.
+        ads_mod._invalidate_ads()
+        hits["n"] = 0
+
+        # Two slots asked for separately: one read, served from memory after.
+        assert len(client.get("/api/ads?slot=leaderboard").json()) == 1
+        assert client.get("/api/ads?slot=in_content").json() == []
+        assert hits["n"] == 1
+
+        # Further reads -- including the unfiltered call the frontend now makes
+        # so it can split one response across every slot -- stay in memory.
+        client.get("/api/ads")
+        client.get("/api/ads?slot=result")
+        assert hits["n"] == 1
+
+        # An admin change must be visible straight away, not after the TTL.
+        ads_mod._invalidate_ads()
+        assert len(client.get("/api/ads").json()) == 1
+        assert hits["n"] == 2
+
+    ads_mod._dismissed.clear()
+
+
 def test_ad_cancel_requires_a_token():
     import ads as ads_mod
     from starlette.testclient import TestClient

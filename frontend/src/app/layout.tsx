@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import { Analytics } from "@vercel/analytics/next";
 import { VisitBeacon } from "@/components/VisitBeacon";
 import { InstallPrompt } from "@/components/InstallPrompt";
+import { API_URL } from "@/lib/config";
 import "./globals.css";
 
 const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
@@ -60,6 +61,13 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en">
       <body className={`${geistSans.variable} ${geistMono.variable} mesh-bg`}>
+        {/* Warm the API origin up front. Every ad slot has to ask the backend
+            which creative to show, and on a cross-origin fetch that request
+            pays DNS + TCP + TLS itself -- by far the most expensive part of an
+            ad's first paint. Started here, it overlaps with the HTML and JS
+            download instead of waiting behind them. React 19 hoists <link>
+            into <head>; "anonymous" matches the credential-less fetch. */}
+        <link rel="preconnect" href={API_URL} crossOrigin="anonymous" />
         <VisitBeacon />
         <InstallPrompt />
         {children}
