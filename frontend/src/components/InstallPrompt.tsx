@@ -109,22 +109,16 @@ export function InstallPrompt() {
               Install Tickless for quick, app-like access and one-tap downloading.
             </p>
           )}
-          <div className="mt-3 flex flex-wrap gap-2">
-            {!ios && deferred && (
+          {!ios && deferred && (
+            <div className="mt-3 flex flex-wrap gap-2">
               <button
                 onClick={install}
                 className="btn-brand flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold"
               >
                 <Download size={15} /> Install
               </button>
-            )}
-            <button
-              onClick={dismiss}
-              className="glass flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold tx-muted hover:tx"
-            >
-              <X size={15} /> {ios ? "Got it" : "Not now"}
-            </button>
-          </div>
+            </div>
+          )}
         </div>
         <button
           onClick={dismiss}

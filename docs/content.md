@@ -232,13 +232,15 @@ authoritative. Terms carries its own "Last updated: 1 August 2026" stamp.
 ### PWA install prompt
 - Title: "Add Tickless to your home screen"
 - Body: "Install Tickless for quick, app-like access..."
-- Buttons: "Install", "Got it", "Not now"
+- Buttons: ONE only - "Install" (iOS has no programmatic prompt, so the card is
+  informational). Dismissing is the top-right ✕ control (aria-label "Dismiss"),
+  never a second "Not now" / "Got it" button.
 
 ### Cookie consent banner
 - Heading: "Cookies at Tickless"
-- Body: "We use a few cookies to understand traffic and, later, to support ads that keep Tickless free. You choose what is allowed."
-- Buttons: "Accept all", "Only necessary", "Manage choices"
-- Preferences modal: heading "Cookie choices"; categories "Strictly necessary", "Analytics", "Advertising"; button "Save choices"
+- Body: "We use a few cookies for traffic and, later, ads that keep Tickless free. You choose what's allowed."
+- First layer: exactly two equal-weight buttons, "Accept all" and "Reject all", plus "Manage choices" as a text link (never a third button)
+- Preferences modal: heading "Cookie choices"; categories "Strictly necessary", "Analytics", "Advertising"; buttons "Accept all", "Reject all", "Save choices"
 
 ### Ad slots
 - Creative alt text: "Advertisement"
