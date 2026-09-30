@@ -37,6 +37,7 @@ in the UI. They are kept for social bios and ads, not for the site.
 Links, in this order (desktop bar and mobile bottom sheet):
 - Home
 - Clip
+- Clean
 - FAQ
 - About
 
@@ -44,6 +45,7 @@ Mobile bottom sheet only (not shown on the desktop bar):
 - Sheet header: "Menu"
 - Home description: "Paste a link, get the clean video"
 - Clip description: "Trim a video into clips"
+- Clean description: "Strip AI tags from a file"
 - FAQ description: "Questions, answered"
 - About description: "What Tickless is and who builds it"
 - Sheet footer: "Tickless by Optivis Labs"
@@ -293,7 +295,55 @@ authoritative. Terms carries its own "Last updated: 1 August 2026" stamp.
 
 ---
 
-## 11. Reconciliation log
+## 11. Clean page (/clean)
+
+- **Title tag:** Clean - Remove AI metadata from videos and photos | Tickless
+- **Meta description:** Strip AI Content Credentials and generation tags from a video, photo, or MP3. The picture and the sound are never touched.
+- **Eyebrow:** Clean any file
+- **Headline:** Strip the AI tags out of any file.
+- **Subhead:** Drop in a video, photo, or MP3. We pull out the Content Credentials and the generation metadata that label a file as AI-made, then hand back the same file. The picture and the sound are not touched.
+- **Drop zone label:** Drop a file here, or click to choose one
+- **Drop zone hint:** MP4, MOV, JPEG, PNG, WebP, HEIC, AVIF, MP3. Up to 200 MB.
+- **Button:** Clean this file
+- **Working state:** Stripping metadata...
+- **Done status line:** Done. {n} tags removed. The file is ready.
+- **Nothing-found status line:** Nothing to remove. This file carries no AI metadata.
+- **Download button:** Download the clean file
+- **Start-over button:** Clean another file
+
+### What it removes
+
+- **Content Credentials (C2PA).** The signed block naming the AI tool that made the file.
+- **AI source labels.** The IPTC "made with AI" field that platforms read to add a warning label.
+- **Prompt fields.** Any prompt, writer name, or tool name stored in the file's XMP.
+- **Generation recipes.** The steps, sampler, and settings a PNG carries in a text chunk.
+- **Edit history.** Past tool runs recorded in the file, including AI editors.
+
+### What it does not remove
+
+- **Watermarks in the picture.** SynthID and marks like it are built into the pixels. No metadata tool can reach them and this one does not try.
+- **What a platform decides.** A site can run its own AI check on the file after you upload it.
+- **A verdict either way.** This removes tags. It says nothing about whether a file really is AI-made, and a clean result is not proof of anything.
+
+### How it works (3 steps)
+
+1. **Drop in a file.** Choose a video, photo, or MP3 from your device.
+2. **We strip the metadata.** The file is cleaned the moment it lands and deleted right after.
+3. **Download it.** You get the same file back with the AI tags gone. The image and audio are copied, not re-encoded, so there is no quality loss.
+
+### Error copy
+
+Served by the backend. The frontend renders `detail` verbatim.
+
+- Unsupported type: "That file type is not supported. Try an MP4, MOV, JPEG, PNG, WebP, HEIC, AVIF, or MP3."
+- File too large: "That file is too large. The limit is 200 MB."
+- Empty file: "That file is empty."
+- Clean failed: "Something went wrong stripping the metadata. Try again, or use a different file."
+- Nothing left to clean: "Nothing to remove. This file carries no AI metadata."
+
+---
+
+## 12. Reconciliation log
 
 **2026-09-27 — first reconciliation since the document was written on
 2026-07-27.** A full read of the frontend against this document found the

@@ -15,6 +15,29 @@ cp .env.example .env   # fill values (API key optional locally)
 uvicorn main:app --reload
 ```
 
+### ExifTool (required by `POST /api/clean`)
+
+`cleaner.exiftool_path()` is `shutil.which("exiftool")`, called at **request**
+time rather than at import. A missing binary therefore does not stop the server:
+the route returns `500`, and `test_clean.py` skips (`HAS_EXIFTOOL`).
+
+- Docker / Render: installed by the `Dockerfile` (`libimage-exiftool-perl`).
+- Local, with sudo: `sudo apt install libimage-exiftool-perl`.
+- Local, no sudo: clone `https://github.com/exiftool/exiftool` and symlink the
+  `exiftool` script into `~/.local/bin`.
+
+`~/.local/bin` is put on `PATH` by `~/.bashrc` (interactive shells, line 120)
+and by `~/.profile` (login shells), so any normal terminal already finds it.
+**Non-interactive** shells skip both: `.bashrc` returns at its `case $- in *i*)`
+guard before reaching that line. That covers `bash -c`, `wsl -- <cmd>`, VS Code
+tasks and debugger launches. Prefix the command in those cases:
+
+```bash
+PATH="$HOME/.local/bin:$PATH" uvicorn main:app --reload
+```
+
+Confirm before trusting it: `command -v exiftool && curl -s localhost:8000/api/health`.
+
 ## Tests
 ```bash
 python -m pytest -q          # all

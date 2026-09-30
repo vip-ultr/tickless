@@ -18,6 +18,33 @@ lives under [Unreleased].
 
 ### Added
 
+- **Clean (`/clean`).** Strip AI provenance metadata from a file you upload:
+  C2PA / JUMBF Content Credentials, the IPTC *made with AI* source type, AI
+  prompt and tool-name fields, PNG generation recipes, and recorded edit
+  history. Standalone page in the same shape as `/clip`, reachable from a new
+  **Clean** nav link. One request handles everything: the upload is read,
+  cleaned into a temp dir, streamed back with the counts in `X-Clean-Removed`,
+  `X-Clean-Had-AI` and `X-Clean-Signals`, and deleted, so unlike `/clip` there
+  is no parked source and no token round-trip. Supports MP4, MOV, M4V, JPEG,
+  PNG, WebP, HEIC, HEIF, AVIF, MP3 and M4A under a 200 MB cap.
+  The engine is ExifTool (`libimage-exiftool-perl`, added to the Dockerfile)
+  because it is the one tool that reads the JUMBF container across every one of
+  those formats from a single command line; MP3 takes a separate FFmpeg path
+  since ExifTool refuses to write MP3 at all. Three traps, found by testing the
+  real binary rather than trusting documentation, shaped `backend/cleaner.py`:
+  ExifTool **silently downgrades an unknown flag to a warning and still exits
+  0** when another flag in the same call is valid, so the widely published
+  AI-strip command (including ExifReader's) contains a dozen flags that do not
+  exist and does far less than it appears to; a zero exit code is **not** proof
+  of removal, because GIF returns 0 while removing nothing, so the output is
+  re-read and the JUMBF block asserted gone; and C2PA in MP3 lives in an ID3
+  `GEOB` frame that ExifTool cannot even see. Scope is **AI-only mode only**,
+  with no full-wipe switch: camera EXIF, GPS, copyright and the ICC profile
+  survive, and a test asserts that. The page carries a permanent *What it does
+  not remove* panel, because SynthID and marks like it live in the pixels where
+  no metadata tool reaches, and the framing is file hygiene rather than
+  defeating detection.
+
 - **Multi-select carousel downloads.** Gallery chips are toggleable — one tap
   ticks the item *and* moves the single-item preview to it, so the single-item
   **Download** keeps behaving exactly as it did. Ticking two or more relabels

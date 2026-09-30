@@ -26,6 +26,13 @@ from starlette.responses import JSONResponse, StreamingResponse
 import httpx
 from extractor import ExtractionError, download_media, extract
 from cobalt_client import cobalt_extract
+from cleaner import (
+    MAX_CLEAN_BYTES,
+    CleanError,
+    extension_of,
+    strip_ai,
+    SUPPORTED_EXTS,
+)
 from validation import normalize_and_validate
 from ads import router as ads_router
 from analytics import router as analytics_router, record_download
@@ -68,6 +75,16 @@ ERROR_MESSAGES = {
     "ig_blocked": "Instagram is blocking our server right now. Try again in a few minutes.",
 }
 
+# Copy for the Clean tool. Kept beside ERROR_MESSAGES because the frontend
+# renders `detail` verbatim, so these strings ARE the user-facing copy.
+# Source of truth: docs/content.md section 11.
+CLEAN_MESSAGES = {
+    "unsupported": "That file type is not supported. Try an MP4, MOV, JPEG, PNG, WebP, HEIC, AVIF, or MP3.",
+    "too_large": "That file is too large. The limit is 200 MB.",
+    "empty": "That file is empty.",
+    "clean_failed": "Something went wrong stripping the metadata. Try again, or use a different file.",
+}
+
 limiter = Limiter(key_func=get_remote_address)
 
 # Error tracking. Inert unless SENTRY_DSN is set in the Render dashboard, so the
@@ -108,7 +125,7 @@ app.add_middleware(
     # subject to CORS. Server-Timing is listed for the same reason: it carries
     # the ad read's server-side duration, which is otherwise unreadable from
     # the page and turns "why are ads slow" into a guess.
-    expose_headers=["Content-Disposition", "Server-Timing"],
+    expose_headers=["Content-Disposition", "Server-Timing", "X-Clean-Removed", "X-Clean-Signals", "X-Clean-Had-AI"],
 )
 
 app.include_router(ads_router)
@@ -806,5 +823,114 @@ async def api_clip(
             },
         )
     except HTTPException:
+        shutil.rmtree(workdir, ignore_errors=True)
+        raise
+
+
+# ===========================================================================
+# Clean endpoint (AI metadata stripping, /clean)
+# ===========================================================================
+
+
+def _clean_output_name(original: str, ext: str) -> str:
+    """Build the download name: 'clip.mp4' -> 'clip-clean.mp4'.
+
+    Sanitized to ASCII so it can go straight into the filename= fallback of
+    Content-Disposition, mirroring how /api/download builds its names.
+    """
+    stem = os.path.basename(original or "")
+    stem = stem.rsplit(".", 1)[0] if "." in stem else stem
+    stem = "".join(c for c in stem if c.isalnum() or c in (" ", "-", "_")).strip()
+    # The fallback is the STEM, not the whole name: "-clean" is appended
+    # below, so seeding it as "tickless-clean" would yield
+    # "tickless-clean-clean.jpg".
+    stem = stem[:80] or "tickless"
+    return f"{stem}-clean.{ext}"
+
+
+@limiter.limit("10/minute")
+@app.post("/api/clean")
+async def api_clean(
+    request: Request,
+    file: UploadFile = File(...),
+    x_tickless_key: str | None = Header(default=None),
+):
+    """Strip AI provenance metadata from an uploaded file and stream it back.
+
+    The file is read once, cleaned into a temp dir, streamed to the browser
+    with the counts in headers, and deleted. Nothing is persisted, matching
+    the product's "we keep nothing" promise (see /api/clip/upload).
+
+    The frontend fetches this as a blob so it can show what was removed and
+    only then hand the user a real download link.
+    """
+    _require_key(x_tickless_key)
+
+    ext = extension_of(file.filename or "")
+    if ext not in SUPPORTED_EXTS:
+        raise HTTPException(status_code=400, detail=CLEAN_MESSAGES["unsupported"])
+
+    data = await file.read(MAX_CLEAN_BYTES + 1)
+    if len(data) == 0:
+        raise HTTPException(status_code=400, detail=CLEAN_MESSAGES["empty"])
+    if len(data) > MAX_CLEAN_BYTES:
+        raise HTTPException(status_code=413, detail=CLEAN_MESSAGES["too_large"])
+
+    workdir = tempfile.mkdtemp(prefix="tickless-clean-")
+    src = os.path.join(workdir, f"source.{ext}")
+    out = os.path.join(workdir, f"clean.{ext}")
+    try:
+        with open(src, "wb") as f:
+            f.write(data)
+
+        # ExifTool/FFmpeg are blocking subprocesses: keep them off the loop.
+        try:
+            result = await run_in_threadpool(strip_ai, src, out)
+        except CleanError as e:
+            raise HTTPException(
+                status_code=400 if e.code == "unsupported" else 500,
+                detail=CLEAN_MESSAGES.get(e.code, CLEAN_MESSAGES["clean_failed"]),
+            )
+        except Exception:
+            logging.exception("clean failed for %s", file.filename)
+            raise HTTPException(status_code=500, detail=CLEAN_MESSAGES["clean_failed"])
+
+        if not os.path.isfile(out) or os.path.getsize(out) == 0:
+            raise HTTPException(status_code=500, detail=CLEAN_MESSAGES["clean_failed"])
+
+        utf8_name = _clean_output_name(file.filename or "", ext)
+        # ASCII fallback for the filename= parameter (RFC 6266).
+        ascii_name = utf8_name.encode("ascii", "replace").decode("ascii").replace('"', "")
+
+        def stream_and_cleanup():
+            try:
+                with open(out, "rb") as f:
+                    while chunk := f.read(64 * 1024):
+                        yield chunk
+            finally:
+                shutil.rmtree(workdir, ignore_errors=True)
+
+        return StreamingResponse(
+            stream_and_cleanup(),
+            media_type=SUPPORTED_EXTS[ext],
+            headers={
+                "Content-Disposition": (
+                    f'attachment; filename="{ascii_name}"; '
+                    f"filename*=UTF-8''{quote(utf8_name)}"
+                ),
+                "Content-Length": str(os.path.getsize(out)),
+                # Header values are ASCII-only; the labels are sanitized
+                # rather than trusted, since they originate in a subprocess.
+                "X-Clean-Removed": str(result.get("removed", 0)),
+                "X-Clean-Had-AI": "1" if result.get("had_ai") else "0",
+                "X-Clean-Signals": ", ".join(result.get("signals") or []).encode(
+                    "ascii", "replace"
+                ).decode("ascii"),
+            },
+        )
+    except HTTPException:
+        shutil.rmtree(workdir, ignore_errors=True)
+        raise
+    except Exception:
         shutil.rmtree(workdir, ignore_errors=True)
         raise

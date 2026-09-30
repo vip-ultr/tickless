@@ -29,6 +29,7 @@ video into several clean segments.
 - **We keep nothing.** No accounts, no download history, no copies stored on our side.
 - **Audio too.** Grab just the sound as an MP3 when that is all you need.
 - **Clip.** Paste a link or upload a video, mark the parts you want, and export each segment as a clean clip or an audio-only track. Nothing is stored.
+- **Clean.** Drop in a file and strip the AI tags out of its metadata: Content Credentials, generation labels, prompt fields, edit history. The picture and the sound are never touched.
 
 ## How it works
 
@@ -113,6 +114,17 @@ cp .env.example .env        # fill values (API key optional locally)
 uvicorn main:app --reload   # http://127.0.0.1:8000
 ```
 
+`/api/clean` additionally needs **ExifTool** on `PATH`
+(`sudo apt install libimage-exiftool-perl`; the Dockerfile already ships it).
+It is looked up with `shutil.which` at *call* time, not at import, so a missing
+binary returns `500` rather than failing to start. An interactive terminal
+already has `~/.local/bin` on `PATH`; a non-interactive spawn (`bash -c`, a VS
+Code task, a debugger launch) does not, so prefix it there:
+
+```bash
+PATH="$HOME/.local/bin:$PATH" uvicorn main:app --reload
+```
+
 ### Frontend
 
 ```bash
@@ -148,6 +160,7 @@ cd api && API_URL=http://127.0.0.1:9000/ PORT=9000 node src/cobalt
 | `GET` | `/api/download` | Stream the clean file to the browser |
 | `POST` | `/api/clip/upload` | Park an uploaded source video; returns a token + duration |
 | `POST` / `GET` | `/api/clip` | Trim one [start, end] segment (video or audio-only) and stream it back |
+| `POST` | `/api/clean` | Strip AI metadata (C2PA/JUMBF, XMP source type, prompts, PNG recipes) and stream the clean file back |
 
 ## Legal
 

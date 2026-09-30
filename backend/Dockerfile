@@ -8,6 +8,9 @@ FROM python:3.12-slim
 # point of view the context root IS backend/.
 
 # ffmpeg needed for audio/slideshow handling.
+# libimage-exiftool-perl is the Clean tool's engine (/clean): it is the one
+# tool that understands the C2PA/JUMBF container across JPEG, PNG, WebP,
+# HEIC, AVIF, MP4 and MOV from one command line. See backend/cleaner.py.
 # Node is REQUIRED twice over:
 #   1. yt-dlp's YouTube signature/"n"-challenge solver (without it extraction
 #      fails with "No video formats found" even with cookies), and
@@ -23,7 +26,7 @@ FROM python:3.12-slim
 # We still deliberately do NOT install chromium. The PO-token provider is the
 # Rust port (bgutil-ytdlp-pot-provider-rs), a single static binary.
 RUN apt-get update && apt-get install -y --no-install-recommends \
-        ffmpeg ca-certificates curl git gnupg \
+        ffmpeg ca-certificates curl git gnupg libimage-exiftool-perl \
     && mkdir -p /etc/apt/keyrings \
     && curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key \
         | gpg --dearmor -o /etc/apt/keyrings/nodesource.gpg \

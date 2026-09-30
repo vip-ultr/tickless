@@ -23,6 +23,11 @@ cp .env.example .env
 uvicorn main:app --reload
 ```
 
+`/api/clean` also needs ExifTool on `PATH` (`sudo apt install
+libimage-exiftool-perl`). It is resolved with `shutil.which` at request time, so
+a missing binary 500s that route instead of preventing startup. See
+`backend/README.md` for the no-sudo install and the non-interactive-shell gotcha.
+
 ### Frontend
 
 ```bash

@@ -9,6 +9,7 @@ const BASE = "https://tickless.vercel.app";
 const PAGES: Array<[path: string, priority: number]> = [
   ["", 1],
   ["/clip", 0.8],
+  ["/clean", 0.8],
   ["/faq", 0.7],
   ["/about", 0.6],
   ["/advertise", 0.5],

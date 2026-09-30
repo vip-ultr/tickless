@@ -13,6 +13,11 @@ slowapi==0.1.10
 python-dotenv==1.2.2
 httpx==0.28.1
 python-multipart==0.0.32
+# Clean tool (/clean): deletes the ID3 GEOB frame that carries C2PA in MP3.
+# ExifTool refuses to write MP3 at all, and FFmpeg's equivalent also wipes
+# Title/Artist/Album, which would break AI-only mode's promise to leave
+# everything except the AI layer alone. Version verified by test_clean.py.
+mutagen==1.48.1
 supabase==2.31.0
 pyjwt==2.13.0
 # Error tracking (see the SENTRY_DSN block in main.py). Inert until a DSN is
