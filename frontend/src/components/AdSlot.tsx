@@ -102,20 +102,11 @@ function loadAds(): Promise<Ad[]> {
 if (typeof window !== "undefined") void loadAds();
 
 /** Skeleton shown while the slot resolves and while the creative downloads.
-    Same box and height as the real ad, so the swap costs no layout shift. */
+    Same box and height as the real ad, so the swap costs no layout shift.
+    Deliberately just a shimmer sweep over the empty box: a fake icon-plus-text
+    figure inside an ad slot reads as a broken ad rather than as loading. */
 function AdSkeleton() {
-  return (
-    <div
-      aria-hidden
-      className="absolute inset-0 flex animate-pulse items-center justify-center gap-3"
-    >
-      <div className="h-9 w-9 rounded-xl bg-[var(--glass-border)]" />
-      <div className="flex flex-col gap-2">
-        <div className="h-3 w-32 rounded bg-[var(--glass-border)]" />
-        <div className="h-2.5 w-20 rounded bg-[var(--glass-border)]" />
-      </div>
-    </div>
-  );
+  return <div aria-hidden className="ad-shimmer absolute inset-0" />;
 }
 /** Reactive matchMedia hook: true when viewport <= 767px (Tailwind's mobile breakpoint). */
 function useIsMobile(): boolean {

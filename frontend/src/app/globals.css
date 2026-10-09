@@ -89,6 +89,27 @@
     .glass { background: var(--bg-elevated); }
   }
 
+  /* Ad-slot loading placeholder: one soft light band sweeping left to right
+     over the empty box. No fake icon or text bars -- those read as a broken
+     ad rather than as loading. Respects reduced-motion by holding still. */
+  .ad-shimmer {
+    background: linear-gradient(
+      100deg,
+      transparent 30%,
+      var(--glass-border) 50%,
+      transparent 70%
+    );
+    background-size: 250% 100%;
+    animation: ad-shimmer 1.8s linear infinite;
+  }
+  @keyframes ad-shimmer {
+    from { background-position: 125% 0; }
+    to { background-position: -125% 0; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .ad-shimmer { animation: none; }
+  }
+
   /* Heavier variant for overlays that sit on busy content (nav, sheet) */
   .glass-strong {
     background: oklch(0.16 0.02 240 / 0.96);
