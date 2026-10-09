@@ -101,12 +101,22 @@ function loadAds(): Promise<Ad[]> {
 // every build.
 if (typeof window !== "undefined") void loadAds();
 
-/**
- * House ad container. Renders NOTHING when no active ad exists for the slot
- * (no broken boxes, no reserved empty space). The optional className (e.g.
- * margins) is applied only when an ad actually renders, so empty slots
- * leave zero footprint in the layout.
- */
+/** Skeleton shown while the slot resolves and while the creative downloads.
+    Same box and height as the real ad, so the swap costs no layout shift. */
+function AdSkeleton() {
+  return (
+    <div
+      aria-hidden
+      className="absolute inset-0 flex animate-pulse items-center justify-center gap-3"
+    >
+      <div className="h-9 w-9 rounded-xl bg-[var(--glass-border)]" />
+      <div className="flex flex-col gap-2">
+        <div className="h-3 w-32 rounded bg-[var(--glass-border)]" />
+        <div className="h-2.5 w-20 rounded bg-[var(--glass-border)]" />
+      </div>
+    </div>
+  );
+}
 /** Reactive matchMedia hook: true when viewport <= 767px (Tailwind's mobile breakpoint). */
 function useIsMobile(): boolean {
   const [isMobile, setIsMobile] = useState(false);
@@ -120,6 +130,13 @@ function useIsMobile(): boolean {
   return isMobile;
 }
 
+/**
+ * House ad container. Resolves to NOTHING (zero footprint) when no active ad
+ * exists for the slot, exactly as before. While the slot is still resolving,
+ * and again while the creative downloads, it shows a same-size skeleton so
+ * the area never sits blank and the ad lands without shifting the page. The
+ * optional className (e.g. margins) applies to both the skeleton and the ad.
+ */
 export function AdSlot({
   slot,
   className = "",
@@ -128,6 +145,14 @@ export function AdSlot({
   className?: string;
 }) {
   const [ad, setAd] = useState<Ad | null>(null);
+  // True once the ads request has settled for this page, whether or not it
+  // held an ad for this slot. Until then the slot is genuinely unknown, so it
+  // shows the skeleton rather than nothing.
+  const [resolved, setResolved] = useState(false);
+  // The creative src that has finished downloading, if any. Tracked per src
+  // because the mobile/desktop pick can flip after mount, and a flip means a
+  // second file is on the wire.
+  const [loadedSrc, setLoadedSrc] = useState<string | null>(null);
   const dismissed = useSyncExternalStore(
     subscribeToDismissal,
     getDismissed,
@@ -139,8 +164,10 @@ export function AdSlot({
     if (getDismissed()) return;
     let stale = false;
     loadAds().then((ads) => {
+      if (stale) return;
       const mine = ads.filter((a) => a.slot === slot);
-      if (stale || mine.length === 0) return;
+      setResolved(true);
+      if (mine.length === 0) return;
       const pick = mine[Math.floor(Math.random() * mine.length)];
       setAd(pick);
       fetch(`${API_URL}/api/ads/${pick.id}/impression`, { method: "POST" }).catch(() => {});
@@ -164,51 +191,70 @@ export function AdSlot({
     }).catch(() => {});
   };
 
-  if (!ad || dismissed) return null;
+  // Known-empty slot: zero footprint, exactly as before. The skeleton only
+  // covers the window where the answer is not known yet.
+  if ((!ad && resolved) || dismissed) return null;
+
+  const src = (isMobile && ad?.image_url_mobile) || ad?.image_url || null;
+  const creativeReady = !!src && loadedSrc === src;
 
   return (
     <div className={className}>
       <div className={`glass relative w-full overflow-hidden rounded-2xl ${SLOT_SIZES[slot]}`}>
-        <span className="pointer-events-none absolute left-2 top-2 z-10 rounded bg-black/60 px-1.5 py-0.5 text-[10px] uppercase tracking-wider tx-muted">
-          Ad
-        </span>
-        {/* The wrapper stays pointer-events-none so a click on the Visit label
-            still falls through to the ad link underneath it; only Cancel opts
-            back in, so the label keeps behaving exactly as before. */}
-        <div className="pointer-events-none absolute right-2 top-2 z-10 flex items-center gap-1">
-          <span className="flex items-center gap-1 rounded bg-black/60 px-1.5 py-0.5 text-[10px] uppercase tracking-wider tx-muted">
-            <ExternalLink size={10} /> Visit
-          </span>
-          <button
-            type="button"
-            onClick={cancelAds}
-            aria-label="Cancel ads for this visit"
-            className="pointer-events-auto flex cursor-pointer items-center gap-1 rounded bg-black/60 px-1.5 py-0.5 text-[10px] uppercase tracking-wider tx-muted transition-colors hover:bg-black/85 hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-white/70"
-          >
-            <X size={14} />
-          </button>
-        </div>
-        <a
-          href={ad.target_url}
-          target="_blank"
-          rel="noopener noreferrer sponsored"
-          onClick={() => {
-            fetch(`${API_URL}/api/ads/${ad.id}/click`, { method: "POST" }).catch(() => {});
-          }}
-        >
-          {/* Pick the device-specific creative; fall back to desktop when a
-              mobile one wasn't uploaded (or vice-versa). fetchPriority keeps
-              the creative ahead of anything else the page asks for once it is
-              known, and async decoding keeps it off the main thread while the
-              page is still settling. */}
-          <img
-            src={(isMobile && ad.image_url_mobile) || ad.image_url}
-            alt="Advertisement"
-            decoding="async"
-            fetchPriority="high"
-            className="h-full w-full rounded-2xl border border-[var(--glass-border)] object-cover"
-          />
-        </a>
+        {/* Skeleton shows until the creative has actually decoded. The <img>
+            is mounted underneath from the moment the slot resolves, so its
+            download runs in parallel with the placeholder instead of after it. */}
+        {!creativeReady && <AdSkeleton />}
+        {ad && (
+          <>
+            <span className="pointer-events-none absolute left-2 top-2 z-10 rounded bg-black/60 px-1.5 py-0.5 text-[10px] uppercase tracking-wider tx-muted">
+              Ad
+            </span>
+            {/* The wrapper stays pointer-events-none so a click on the Visit label
+                still falls through to the ad link underneath it; only Cancel opts
+                back in, so the label keeps behaving exactly as before. */}
+            <div className="pointer-events-none absolute right-2 top-2 z-10 flex items-center gap-1">
+              <span className="flex items-center gap-1 rounded bg-black/60 px-1.5 py-0.5 text-[10px] uppercase tracking-wider tx-muted">
+                <ExternalLink size={10} /> Visit
+              </span>
+              <button
+                type="button"
+                onClick={cancelAds}
+                aria-label="Cancel ads for this visit"
+                className="pointer-events-auto flex cursor-pointer items-center gap-1 rounded bg-black/60 px-1.5 py-0.5 text-[10px] uppercase tracking-wider tx-muted transition-colors hover:bg-black/85 hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-white/70"
+              >
+                <X size={14} />
+              </button>
+            </div>
+            <a
+              href={ad.target_url}
+              target="_blank"
+              rel="noopener noreferrer sponsored"
+              className={creativeReady ? "" : "invisible"}
+              onClick={() => {
+                fetch(`${API_URL}/api/ads/${ad.id}/click`, { method: "POST" }).catch(() => {});
+              }}
+            >
+              {/* Pick the device-specific creative; fall back to desktop when a
+                  mobile one wasn't uploaded (or vice-versa). fetchPriority keeps
+                  the creative ahead of anything else the page asks for once it is
+                  known, and async decoding keeps it off the main thread while the
+                  page is still settling. The fade-in is what hands the box from
+                  the skeleton to the real creative with no pop. */}
+              <img
+                src={src ?? undefined}
+                alt="Advertisement"
+                decoding="async"
+                fetchPriority="high"
+                onLoad={() => src && setLoadedSrc(src)}
+                onError={() => src && setLoadedSrc(src)}
+                className={`h-full w-full rounded-2xl border border-[var(--glass-border)] object-cover transition-opacity duration-300 ${
+                  creativeReady ? "opacity-100" : "opacity-0"
+                }`}
+              />
+            </a>
+          </>
+        )}
       </div>
     </div>
   );
