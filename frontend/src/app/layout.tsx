@@ -41,8 +41,11 @@ export const metadata: Metadata = {
     siteName: "Tickless",
     type: "website",
   },
+  // summary_large_image, not summary: the twitter-image / opengraph-image
+  // file conventions serve a 1200x630 card, which X only renders as a large
+  // preview when the card type says so.
   twitter: {
-    card: "summary",
+    card: "summary_large_image",
     title: "Tickless - TikTok & Instagram Video Downloader",
     description: "Save TikTok and Instagram videos cleanly, no watermark.",
   },

@@ -108,9 +108,16 @@ export function CleanTool() {
           shorthand, so a dashed utility on the same element would come down to
           a cascade race between two rules of identical specificity. Explicit
           Tailwind utilities only, matching the advertise page's spec box
-          (bg-elevated + dashed). The border is white rather than
-          --glass-border so the target reads as the primary affordance. */}
+          (bg-elevated + dashed, --glass-border for the resting outline). */}
       <div
+        onClick={(e) => {
+          // The whole box opens the picker, not just the label. Clicks on
+          // nested controls (Clean this file, the download link, reset)
+          // bubble here too, so they are excluded.
+          if (state.kind !== "idle" && state.kind !== "ready") return;
+          if ((e.target as HTMLElement).closest("button, a")) return;
+          inputRef.current?.click();
+        }}
         onDragOver={(e) => {
           e.preventDefault();
           setDragging(true);
@@ -121,8 +128,8 @@ export function CleanTool() {
           setDragging(false);
           if (!busy) pick(e.dataTransfer.files?.[0]);
         }}
-        className={`rounded-2xl border border-dashed p-6 bg-[var(--bg-elevated)] transition-colors ${
-          dragging ? "border-[var(--brand-primary)]" : "border-white"
+        className={`cursor-pointer rounded-2xl border border-dashed p-6 bg-[var(--bg-elevated)] transition-colors ${
+          dragging ? "border-[var(--brand-primary)]" : "border-[var(--glass-border)]"
         }`}
       >
         {/* Idle / ready */}
