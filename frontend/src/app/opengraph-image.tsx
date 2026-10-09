@@ -1,25 +1,38 @@
 import { ImageResponse } from "next/og";
+import { OG_FACES, OG_ICON_DATA } from "@/lib/og-assets";
 
-// Programmatic OG image (Next file convention). Served at /opengraph-image and
-// injected into <head> automatically. 1200x630 is the 1.91:1 ratio every major
-// crawler renders: X summary_large_image, WhatsApp link previews, Discord
-// embeds, Telegram, iMessage, Slack.
+// Programmatic OG image (Next file convention, served at /opengraph-image and
+// /twitter-image). 1200x630 is the 1.91:1 ratio every major crawler renders:
+// X summary_large_image, WhatsApp, Discord, Telegram, iMessage, Slack.
 //
-// Colours mirror frontend/src/app/globals.css brand tokens (LOCKED) and
-// public/icon-512.png: midnight slate ground, electric lime mark, no gradients.
+// Design mirrors the site itself rather than approximating it:
+//   - Geist, the exact variable font next/font loads (bundled in og-assets.ts,
+//     so the route has zero runtime fetches).
+//   - public/icon-512.png, the real brand icon, not a redrawn stand-in.
+//   - The homepage hero's copy and hierarchy: cyan eyebrow, extrabold
+//     headline with the accent word, muted subline.
+// Brand tokens (LOCKED, see globals.css): midnight ground, electric lime
+// primary, luminous cyan accent, no gradients.
 export const alt = "Tickless - clean, watermark-free TikTok and Instagram downloads";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
-const BG = "#14171E"; // --bg-base midnight slate
-const SURFACE = "#242833"; // --bg-elevated, matches the app icon's tile
-const LIME = "#A6E63D"; // --brand-primary electric lime
+const BG = "#14171E"; // --bg-base
 const FG = "#F4F6F8"; // --text-primary
 const MUTED = "#9AA3B2"; // --text-muted
-const CHIP = "rgba(255,255,255,0.06)";
-const HAIRLINE = "rgba(255,255,255,0.14)";
+const LIME = "#A6E63D"; // --brand-primary
+const CYAN = "#5CC8DC"; // --brand-accent (oklch(0.78 0.16 195))
+const CHIP_BG = "rgba(255,255,255,0.05)";
+const HAIRLINE = "rgba(255,255,255,0.12)";
 
-const CHIP_FONT = 26;
+// Satori wants font bytes, not a base64 string. atob exists on both the edge
+// and node runtimes, so this stays portable either way.
+function decodeFont(b64: string): ArrayBuffer {
+  const bin = atob(b64);
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return bytes.buffer;
+}
 
 export default function OpengraphImage() {
   return new ImageResponse(
@@ -30,58 +43,41 @@ export default function OpengraphImage() {
           height: "100%",
           display: "flex",
           flexDirection: "column",
-          justifyContent: "space-between",
-          padding: 72,
+          padding: "76px 84px",
           backgroundColor: BG,
-          fontFamily: "sans-serif",
+          fontFamily: "Geist",
           position: "relative",
         }}
       >
         {/* Dashed inset frame: the same affordance motif as the site's
-            upload targets. Satori renders borderStyle dashed. */}
+            upload targets, kept faint so it frames without competing. */}
         <div
           style={{
             position: "absolute",
-            top: 26,
-            left: 26,
-            right: 26,
-            bottom: 26,
-            border: "2px dashed rgba(255,255,255,0.10)",
-            borderRadius: 36,
+            top: 28,
+            left: 28,
+            right: 28,
+            bottom: 28,
+            border: "2px dashed rgba(255,255,255,0.09)",
+            borderRadius: 40,
           }}
         />
 
-        {/* Wordmark row: app-icon tile + Tick(white)less(lime) */}
-        <div style={{ display: "flex", alignItems: "center", gap: 30 }}>
-          <div
-            style={{
-              width: 124,
-              height: 124,
-              borderRadius: 32,
-              backgroundColor: SURFACE,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-            }}
-          >
-            <span
-              style={{
-                color: LIME,
-                fontSize: 82,
-                fontWeight: 800,
-                lineHeight: 1,
-                marginTop: -6,
-              }}
-            >
-              T
-            </span>
-          </div>
+        {/* Header: brand icon + wordmark, tracking-tight like the navbar */}
+        <div style={{ display: "flex", alignItems: "center", gap: 28 }}>
+          <img
+            src={OG_ICON_DATA}
+            width={116}
+            height={116}
+            style={{ display: "flex" }}
+            alt=""
+          />
           <div
             style={{
               display: "flex",
-              fontSize: 86,
+              fontSize: 82,
               fontWeight: 800,
-              letterSpacing: -2,
+              letterSpacing: -3,
               color: FG,
             }}
           >
@@ -90,40 +86,69 @@ export default function OpengraphImage() {
           </div>
         </div>
 
-        {/* Headline */}
-        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+        {/* Hero copy, same hierarchy as the homepage h1 */}
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            gap: 18,
+            marginTop: 54,
+            marginBottom: 44,
+          }}
+        >
           <div
             style={{
               display: "flex",
-              fontSize: 46,
-              fontWeight: 700,
-              color: FG,
-              letterSpacing: -0.5,
+              fontSize: 27,
+              fontWeight: 600,
+              color: CYAN,
+              letterSpacing: 0.2,
             }}
           >
-            Clean, watermark-free downloads.
+            {/* Text wrapped in one span: Satori splits bare text nodes inside
+                flex containers into per-word items with uneven spacing. */}
+            <span>Free TikTok &amp; Instagram downloader</span>
           </div>
           <div
             style={{
               display: "flex",
-              fontSize: 31,
-              fontWeight: 500,
-              color: MUTED,
+              flexDirection: "column",
+              fontSize: 58,
+              fontWeight: 800,
+              lineHeight: 1.14,
+              letterSpacing: -1.6,
+              color: FG,
             }}
           >
-            TikTok &middot; Instagram &middot; No app, no sign-up
+            {/* Two plain lines, accent line on its own: Satori mangles inline
+                accent spans inside flex text (drops the space before the
+                nested span, adds a phantom one after it). */}
+            <span style={{ display: "flex" }}>Save any video without the</span>
+            <span style={{ display: "flex", color: LIME }}>watermark.</span>
+          </div>
+          <div
+            style={{
+              display: "flex",
+              fontSize: 29,
+              fontWeight: 450,
+              color: MUTED,
+              marginTop: 6,
+            }}
+          >
+            <span>No sign-up, no app. Clean files straight to your device.</span>
           </div>
         </div>
 
-        {/* Feature chips + domain */}
+        {/* Footer: feature chips + domain */}
         <div
           style={{
             display: "flex",
             alignItems: "center",
             justifyContent: "space-between",
+            marginTop: "auto",
           }}
         >
-          <div style={{ display: "flex", gap: 16 }}>
+          <div style={{ display: "flex", gap: 14 }}>
             {["No watermark", "HD quality", "MP3 audio", "100% free"].map(
               (label) => (
                 <div
@@ -131,13 +156,14 @@ export default function OpengraphImage() {
                   style={{
                     display: "flex",
                     alignItems: "center",
-                    padding: "12px 24px",
+                    padding: "13px 26px",
                     borderRadius: 999,
-                    backgroundColor: CHIP,
+                    backgroundColor: CHIP_BG,
                     border: `1.5px solid ${HAIRLINE}`,
-                    color: "#C9D0DA",
-                    fontSize: CHIP_FONT,
-                    fontWeight: 600,
+                    color: "#C6CDD8",
+                    fontSize: 25,
+                    fontWeight: 550,
+                    letterSpacing: -0.2,
                   }}
                 >
                   {label}
@@ -151,14 +177,16 @@ export default function OpengraphImage() {
               alignItems: "center",
               gap: 12,
               color: MUTED,
-              fontSize: 28,
+              fontFamily: "Geist Mono",
+              fontSize: 25,
               fontWeight: 500,
+              letterSpacing: -0.3,
             }}
           >
             <div
               style={{
-                width: 12,
-                height: 12,
+                width: 11,
+                height: 11,
                 borderRadius: 999,
                 backgroundColor: LIME,
               }}
@@ -168,6 +196,16 @@ export default function OpengraphImage() {
         </div>
       </div>
     ),
-    { ...size },
+    {
+      ...size,
+      fonts: OG_FACES.map((f) => ({
+        name: f.name,
+        data: decodeFont(f.data),
+        // Numeric literals: satori's Weight type is 100..900 numbers, and
+        // rejects strings.
+        weight: f.weight as 500 | 600 | 700 | 800,
+        style: "normal",
+      })),
+    },
   );
 }
