@@ -18,6 +18,14 @@ create table if not exists ads (
   )
 );
 
+-- Backfill for tables created before the per-device-creatives release. Running
+-- the file against a fresh DB is a no-op here; against an existing table it
+-- adds the column the code now writes, without which every ad insert 400s
+-- with PGRST204 ("Could not find the 'image_url_mobile' column ... in the
+-- schema cache"). `create table if not exists` never alters an existing
+-- table, so this must be its own statement.
+alter table ads add column if not exists image_url_mobile text;
+
 -- Atomic counter increments used by /impression and /click endpoints
 create or replace function increment_ad_counter(ad_id uuid, counter text)
 returns void language plpgsql as $$

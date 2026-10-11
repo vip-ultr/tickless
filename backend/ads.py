@@ -365,7 +365,15 @@ async def create_ad(
         "starts_at": starts_at or None,
         "ends_at": ends_at or None,
     }
-    res = sb.table("ads").insert(row).execute()
+    try:
+        res = sb.table("ads").insert(row).execute()
+    except Exception as exc:  # noqa: BLE001 - surface Supabase errors verbatim
+        # A schema mismatch (e.g. a column the live table is missing) otherwise
+        # bubbles up as an unhandled 500 and the admin UI just says "failed to
+        # fetch". Return the Postgres message so the fix (run supabase_schema.sql)
+        # is obvious instead of hidden.
+        detail = getattr(exc, "message", None) or str(exc)
+        raise HTTPException(status_code=500, detail=f"Ad insert failed: {detail}") from exc
     _invalidate_ads()
     return res.data[0]
 
