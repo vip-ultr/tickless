@@ -50,6 +50,30 @@ jobs:
         with:
           python-version: "3.12"
 
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: backend/cobalt/pnpm-lock.yaml
+
+      # Several backend tests drive the vendored cobalt ESM tree (instagram
+      # embed markup parsing, the ig extraction cascade), which imports its
+      # npm deps (@imput/psl and friends). This job used to install only
+      # Python, so every one of those tests died with ERR_MODULE_NOT_FOUND
+      # and main stayed red on all six pushes since 2026-10-09. --prod and
+      # --ignore-scripts match what the tests need (pure-JS imports, no
+      # native builds) and keep the job quick; the docker job below remains
+      # the thing that exercises a real production-shaped cobalt build.
+      - name: Install cobalt dependencies
+        run: pnpm install --prod --frozen-lockfile --ignore-scripts
+        working-directory: backend/cobalt
+
       - name: Install dependencies
         run: |
           pip install -r requirements.txt

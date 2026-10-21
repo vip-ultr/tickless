@@ -22,6 +22,10 @@ Thumbs.db
 
 # pnpm junk (host quirk)
 pnpm-workspace.yaml
+# ...but the vendored cobalt tree REQUIRES its workspace file to resolve the
+# `workspace:^` deps (api -> @imput/version-info); without it `pnpm install`
+# inside backend/cobalt resolves nothing. Restored from upstream, tracked.
+!backend/cobalt/pnpm-workspace.yaml
 
 # Misc
 *.log
