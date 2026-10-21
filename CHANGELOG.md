@@ -215,6 +215,27 @@ lives under [Unreleased].
 
 ### Fixed
 
+- **Some Instagram reels downloaded as a `.jpg` instead of an `.mp4`.** A
+  copyright-flagged reel (Instagram's embed payload reports
+  `context.copyright_blocked: true`) comes back as a `GraphVideo` with
+  `is_video: true` but **no `video_url` field at all** — the file itself is
+  withheld from the logged-out embed, leaving only `display_url`, the poster
+  frame. `extractOldPost()` checked for `video_url`, found none, and fell
+  straight through to the `display_url` branch, returning `isPhoto: true`; it
+  never consulted `is_video`, which was present the whole time. So a 46-second
+  clip arrived as `instagram_<id>.jpg`. Two defects compounded: `getPost()`
+  judged each extraction stage by whether it returned *JSON* rather than
+  whether it returned a *file*, so as soon as the embed page answered the
+  cascade froze and the later GraphQL stage — which for that same post still
+  carries the file — never ran. Every stage is now judged by `hasMedia()` and
+  falls through when it yields structure but no file, a throwing stage skips
+  to the next instead of aborting the cascade, and a video-shaped node that
+  shipped no video URL is refused by all four extraction paths (`extractOldPost`,
+  `extractNewPost`, and both carousel branches) rather than demoted to a photo.
+  The honest failure when every stage withholds the file is now `fetch.empty`,
+  not a poster frame. Covered by `test_ig_copyright_blocked_reel_is_not_served_as_a_photo`,
+  A/B verified to fail without the fix (it reproduced
+  `instagram_DeuQdvFsdC9.jpg` on the original code).
 - **"Download all" produced wrong filenames and file types.** Files arrived as
   `tickless_<entire caption>_1` with no extension, so Windows showed an unknown
   "file" and photos and videos were indistinguishable — while a single-item

@@ -431,6 +431,11 @@ export default function instagram(obj) {
 
         if (sidecar) {
             const picker = sidecar.edges.filter(e => e.node?.display_url)
+                // A sidecar child that is is_video but shipped no video_url is
+                // a withheld video, not a photo: the old typing collapsed both
+                // cases to "photo" and served its poster frame as a .jpg. Drop
+                // those children instead of mislabeling them.
+                .filter(e => !(e.node?.is_video && !e.node?.video_url))
                 .map((e, i) => {
                     const type = e.node?.is_video && e.node?.video_url ? "video" : "photo";
 
@@ -476,6 +481,20 @@ export default function instagram(obj) {
             }, shortcodeMedia, id)
         }
 
+        // A video that shipped no `video_url` must never fall through to the
+        // photo branch below.
+        //
+        // Instagram withholds the file from the logged-out embed for some
+        // GraphVideo reels — the payload still reports is_video: true, but
+        // omits video_url entirely and carries `context.copyright_blocked:
+        // true` (observed on reel DeuQdvFsdC9). The only media left is
+        // `display_url`, the poster frame, so the old code labelled the post
+        // `isPhoto: true` and the user received instagram_<id>.jpg instead of
+        // the clip. Returning undefined lets getPost() move on to the stages
+        // after this one — notably the web graphql api, which for that same
+        // post still carries the file.
+        if (shortcodeMedia?.is_video) return;
+
         if (shortcodeMedia?.display_url) {
             return attachMeta({
                 urls: shortcodeMedia.display_url,
@@ -489,6 +508,11 @@ export default function instagram(obj) {
         const carousel = data.carousel_media;
         if (carousel) {
             const picker = carousel.filter(e => e?.image_versions2)
+                // A carousel child that is media_type 2 (video) but exposed no
+                // video_versions is a withheld video, not a photo: typing it
+                // "photo" would silently deliver its poster frame as a .jpg.
+                // Drop those children rather than mislabel them.
+                .filter(e => !(e.media_type === 2 && !e.video_versions))
                 .map((e, i) => {
                     const type = e.video_versions ? "video" : "photo";
                     const imageUrl = e.image_versions2.candidates[0].url;
@@ -532,6 +556,13 @@ export default function instagram(obj) {
                 audioFilename: `instagram_${id}_audio`
             }, data, id)
         } else if (data.image_versions2?.candidates) {
+            // Same contract as extractOldPost: the mobile api's media_type 2
+            // means VIDEO, so an item that is media_type 2 but exposed no
+            // video_versions is a video Instagram is withholding, not a photo.
+            // Its image_versions2 is only the poster frame. Serving it would
+            // quietly swap the user's clip for a .jpg, so fall through (return
+            // nothing) and let getPost() try the next extraction stage.
+            if (data.media_type === 2) return;
             return attachMeta({
                 urls: data.image_versions2.candidates[0].url,
                 isPhoto: true,
@@ -564,7 +595,51 @@ export default function instagram(obj) {
         const hasData = (data) => data
                                     && data.gql_data !== null
                                     && data?.gql_data?.xdt_shortcode_media !== null;
-        let data, result;
+
+        // Whether an extracted result actually carries a file we can serve.
+        // `isPhoto: true` results count (a real single image is a success);
+        // anything without `urls` or a non-empty `picker` does not.
+        const hasMedia = (result) => !!result
+            && (!!result.urls || (Array.isArray(result.picker) && result.picker.length > 0));
+
+        // Last structurally-valid stage payload, set by tryStage. Used at the
+        // tail to tell "Instagram never answered" apart from "it answered but
+        // held the file back".
+        let data;
+
+        // Run ONE stage and extract from whatever it returned. Returns the
+        // result only if it carries media; otherwise undefined.
+        //
+        // This is deliberately per-stage rather than "fetch everything, then
+        // extract once at the end" (the previous shape). Instagram answers the
+        // embed page for GraphVideo reels WITHOUT a `video_url` field, so a
+        // stage can be structurally successful (hasData -> true) yet have no
+        // file to give. Treating that as success froze the cascade and shipped
+        // the poster frame as a .jpg. Each stage must therefore be judged on
+        // whether it produced media, not on whether it produced JSON.
+        const tryStage = async (fetcher) => {
+            let stage;
+            try {
+                stage = await fetcher();
+            } catch {
+                // A throwing stage is skipped and the NEXT stage is tried.
+                // (Previously every stage shared one try/catch, so a throw
+                // aborted the cascade outright and nothing after it ran.)
+                return;
+            }
+            if (!stage) return;
+            // Remember the last structurally-valid payload, even if it carried
+            // no media. The tail of getPost uses it to tell "Instagram never
+            // answered" (-> getErrorContext, which can report private/age
+            // gates) apart from "answered, but with no file" (-> fetch.empty).
+            data = stage;
+            const result = stage?.gql_data
+                ? extractOldPost(stage, id, alwaysProxy)
+                : extractNewPost(stage, id, alwaysProxy);
+            return hasMedia(result) ? result : undefined;
+        };
+
+        let result;
         try {
             const cookie = getCookie('instagram');
 
@@ -577,26 +652,22 @@ export default function instagram(obj) {
             if (!media_id && cookie) media_id = await getMediaId(id, { cookie });
 
             // mobile api (bearer)
-            if (media_id && token) data = await requestMobileApi(media_id, { token });
+            if (media_id && token) result = await tryStage(() => requestMobileApi(media_id, { token }));
 
             // mobile api (no cookie, cookie)
-            if (media_id && !hasData(data)) data = await requestMobileApi(media_id);
-            if (media_id && cookie && !hasData(data)) data = await requestMobileApi(media_id, { cookie });
+            if (!result && media_id) result = await tryStage(() => requestMobileApi(media_id));
+            if (!result && media_id && cookie) result = await tryStage(() => requestMobileApi(media_id, { cookie }));
 
             // html embed (no cookie, cookie)
-            if (!hasData(data)) data = await requestHTML(id);
-            if (!hasData(data) && cookie) data = await requestHTML(id, cookie);
+            if (!result) result = await tryStage(() => requestHTML(id));
+            if (!result && cookie) result = await tryStage(() => requestHTML(id, cookie));
 
             // web app graphql api (no cookie, cookie)
-            if (!hasData(data)) data = await requestGQL(id);
-            if (!hasData(data) && cookie) data = await requestGQL(id, cookie);
+            if (!result) result = await tryStage(() => requestGQL(id));
+            if (!result && cookie) result = await tryStage(() => requestGQL(id, cookie));
         } catch {}
 
-        if (hasData(data)) {
-            if (data?.gql_data) result = extractOldPost(data, id, alwaysProxy);
-            else result = extractNewPost(data, id, alwaysProxy);
-            if (result) return result;
-        }
+        if (result) return result;
 
         // nothing structured to work with: single-image posts only expose the
         // file through the embed markup (see parseEmbedMarkup).

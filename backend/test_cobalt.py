@@ -239,3 +239,56 @@ def test_loopback_thumbnails_are_stripped():
     # Public CDN thumbnails must survive untouched.
     keep = "https://scontent.cdninstagram.com/v/t51/thumb.jpg"
     assert mod._public_thumb(keep) == keep
+
+
+def test_ig_copyright_blocked_reel_is_not_served_as_a_photo(tmp_path):
+    """A withheld Instagram video must never be delivered as its poster .jpg.
+
+    Instagram answers the embed page for some GraphVideo reels WITHOUT a
+    `video_url` field — the payload carries `context.copyright_blocked: true`
+    and only exposes `display_url` (the poster frame). Two defects compounded:
+
+      1. extractOldPost() fell through from the missing `video_url` straight
+         to the `display_url` branch and labelled the post `isPhoto: true`,
+         so the user got `instagram_<id>.jpg` — a still — for a video.
+      2. getPost() judged each extraction stage by whether it returned JSON,
+         not by whether it returned a file, so as soon as the embed page
+         answered the cascade froze and the later graphql stage (which still
+         carries the file) never ran.
+
+    Drives the REAL instagram() service with a mocked global fetch, so the
+    actual cascade runs rather than a re-implementation of it. Uses a real
+    embed page captured from the affected post (fixture in backend/fixtures/).
+    """
+    import shutil
+    import subprocess
+    from pathlib import Path
+
+    if not shutil.which("node"):
+        pytest.skip("node not available")
+
+    here = Path(__file__).parent
+    helper = here / "ig_cascade_test.mjs"
+    fixture = here / "fixtures" / "instagram_embed_reel_copyright_blocked.html"
+    if not fixture.exists():
+        pytest.skip("instagram embed fixture not present")
+
+    # The harness imports the vendored cobalt ESM tree, which needs its deps
+    # installed. CI's backend job installs only Python requirements (the
+    # Docker job is what exercises cobalt for real), so skip rather than fail.
+    api_pkg = here / "cobalt" / "api" / "package.json"
+    api_modules = here / "cobalt" / "api" / "node_modules"
+    if not api_pkg.exists() or not api_modules.exists():
+        pytest.skip("cobalt node_modules not installed (run pnpm install)")
+
+    out = subprocess.run(
+        ["node", str(helper), str(fixture)],
+        capture_output=True, text=True, timeout=120,
+        # cobalt/api owns the package.json that scopes the vendored ESM tree;
+        # backend/ has none, and node refuses to resolve it without one.
+        cwd=here / "cobalt" / "api",
+    )
+    assert out.returncode == 0, f"stdout:\n{out.stdout}\nstderr:\n{out.stderr}"
+    assert "FAIL" not in out.stdout, out.stdout
+    # Guard against the harness silently asserting nothing.
+    assert out.stdout.count("PASS") >= 9, out.stdout
